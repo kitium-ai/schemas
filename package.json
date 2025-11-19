@@ -1,0 +1,85 @@
+{
+  "name": "@kitium-ai/schema",
+  "version": "0.1.0",
+  "description": "Enterprise-ready reusable schema definitions for Product SaaS",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs"
+    },
+    "./core": {
+      "types": "./dist/schemas/core/index.d.ts",
+      "require": "./dist/schemas/core/index.js",
+      "import": "./dist/schemas/core/index.mjs"
+    },
+    "./auth": {
+      "types": "./dist/schemas/auth/index.d.ts",
+      "require": "./dist/schemas/auth/index.js",
+      "import": "./dist/schemas/auth/index.mjs"
+    },
+    "./organization": {
+      "types": "./dist/schemas/organization/index.d.ts",
+      "require": "./dist/schemas/organization/index.js",
+      "import": "./dist/schemas/organization/index.mjs"
+    },
+    "./product": {
+      "types": "./dist/schemas/product/index.d.ts",
+      "require": "./dist/schemas/product/index.js",
+      "import": "./dist/schemas/product/index.mjs"
+    },
+    "./billing": {
+      "types": "./dist/schemas/billing/index.d.ts",
+      "require": "./dist/schemas/billing/index.js",
+      "import": "./dist/schemas/billing/index.mjs"
+    },
+    "./api": {
+      "types": "./dist/schemas/api/index.d.ts",
+      "require": "./dist/schemas/api/index.js",
+      "import": "./dist/schemas/api/index.mjs"
+    },
+    "./validators": {
+      "types": "./dist/validators/index.d.ts",
+      "require": "./dist/validators/index.js",
+      "import": "./dist/validators/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc && tsc --module esnext --outDir dist --declaration",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "schema",
+    "typescript",
+    "validation",
+    "saas",
+    "enterprise"
+  ],
+  "author": "Kitium AI",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kitium-ai/schemas.git"
+  }
+}
