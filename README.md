@@ -6,6 +6,8 @@ Enterprise-ready reusable schema definitions for Product SaaS applications. Prov
 
 ✅ **Type-Safe** - Full TypeScript support with inferred types
 ✅ **Validation** - Built-in validation using Zod
+✅ **Request Middleware** - Express.js and Fastify middleware for automatic validation
+✅ **Cross-Field Validation** - Support for complex field relationships
 ✅ **Enterprise-Ready** - Schemas for multi-tenant SaaS applications
 ✅ **Comprehensive** - Covers core entities, auth, products, billing, and APIs
 ✅ **Extensible** - Easy to extend and customize for your needs
@@ -295,6 +297,201 @@ const apiResult = validate(createResponseSchema, {
 });
 ```
 
+## Request Validation Middleware
+
+The package includes built-in middleware for automatic request validation in Express.js and Fastify applications.
+
+### Express.js Middleware
+
+Use middleware functions to automatically validate request body, query, params, and headers:
+
+```typescript
+import express from 'express';
+import {
+  validateBody,
+  validateQuery,
+  validateParams,
+  validateHeaders,
+  validationErrorHandler,
+} from '@kitium-ai/schema';
+import {
+  CreateUserSchema,
+  QueryParamsSchema,
+  UserParamsSchema,
+} from '@kitium-ai/schema';
+
+const app = express();
+app.use(express.json());
+
+// Validate single source
+app.post(
+  '/users',
+  validateBody(CreateUserSchema),
+  (req, res) => {
+    // req.body is validated and type-safe
+    res.json({ user: req.body });
+  },
+);
+
+// Validate multiple sources
+app.get(
+  '/users/:id',
+  validateParams(UserParamsSchema),
+  validateQuery(QueryParamsSchema),
+  (req, res) => {
+    // req.params and req.query are validated
+    res.json({ user: req.params });
+  },
+);
+
+// Error handling middleware (place after all routes)
+app.use(validationErrorHandler());
+```
+
+### Fastify Plugin
+
+Register validation as a Fastify plugin:
+
+```typescript
+import Fastify from 'fastify';
+import { createValidationPlugin } from '@kitium-ai/schema';
+import { CreateUserSchema, QueryParamsSchema } from '@kitium-ai/schema';
+
+const fastify = Fastify();
+
+// Register validation plugin
+fastify.register(
+  createValidationPlugin({
+    body: CreateUserSchema,
+    query: QueryParamsSchema,
+  }),
+);
+
+fastify.post('/users', async (request, reply) => {
+  // request.body and request.query are validated
+  reply.send({ user: request.body });
+});
+```
+
+### Cross-Field Validation
+
+Validate relationships between fields:
+
+```typescript
+import { validateWithCrossFields } from '@kitium-ai/schema';
+import { UpdateUserSchema } from '@kitium-ai/schema';
+
+const result = validateWithCrossFields(
+  UpdateUserSchema,
+  {
+    email: 'user@example.com',
+    password: 'NewPass123!',
+    passwordConfirm: 'NewPass123!',
+  },
+  [
+    {
+      condition: (data) => data.password === data.passwordConfirm,
+      message: 'Passwords must match',
+      fields: ['password', 'passwordConfirm'],
+    },
+  ],
+);
+
+if (!result.success) {
+  console.log('Validation errors:', result.errors);
+  console.log('Field dependencies:', result.fieldDependencies);
+}
+```
+
+### Conditional Validation
+
+Validate based on conditions:
+
+```typescript
+import { validateConditional, validateMultiple } from '@kitium-ai/schema';
+import { UserSchema, BillingSchema } from '@kitium-ai/schema';
+
+// Validate only if condition is true
+const isPremium = true;
+const result = validateConditional(
+  BillingSchema,
+  userData,
+  () => isPremium,
+);
+
+// Validate multiple schemas
+const multiResult = validateMultiple(
+  {
+    user: UserSchema,
+    billing: BillingSchema,
+  },
+  data,
+);
+```
+
+### Custom Error Messages
+
+Map validation errors to custom messages:
+
+```typescript
+import {
+  validate,
+  createErrorMessageMapper,
+} from '@kitium-ai/schema';
+import { CreateUserSchema } from '@kitium-ai/schema';
+
+const errorMapper = createErrorMessageMapper({
+  email: {
+    invalid_string: 'Please provide a valid email address',
+  },
+  password: {
+    too_small: 'Password must be at least 8 characters',
+  },
+});
+
+const result = validate(CreateUserSchema, data);
+if (!result.success && result.errors) {
+  const customErrors = errorMapper(result.errors);
+  console.log('User-friendly errors:', customErrors);
+}
+```
+
+### Middleware Utilities
+
+Powerful utility functions for advanced validation scenarios:
+
+```typescript
+import {
+  filterErrorsByField,
+  sanitizeData,
+  createBatchValidator,
+  createTypeGuard,
+  extendSchema,
+} from '@kitium-ai/schema';
+import { UserSchema } from '@kitium-ai/schema';
+
+// Filter errors by specific fields
+const emailErrors = filterErrorsByField(result.errors, ['email']);
+
+// Remove null/undefined values
+const clean = sanitizeData({ name: 'John', age: null });
+
+// Batch validate items
+const batchValidator = createBatchValidator(UserSchema);
+const batchResult = batchValidator([user1, user2, user3]);
+
+// Create type guard from schema
+const isValidUser = createTypeGuard(UserSchema);
+if (isValidUser(data)) {
+  // data is typed as User
+}
+
+// Extend existing schema
+const ExtendedUserSchema = extendSchema(UserSchema, {
+  metadata: z.record(z.string()),
+});
+```
+
 ## Validation Utilities
 
 The package provides convenient validation utilities:
@@ -484,7 +681,38 @@ The schemas implement security best practices:
 
 ## Integration Examples
 
-### Express.js
+### Express.js with Middleware
+
+Using automatic request validation middleware:
+
+```typescript
+import express, { Request, Response } from 'express';
+import {
+  validateBody,
+  validateQuery,
+  validationErrorHandler,
+} from '@kitium-ai/schema';
+import { CreateUserSchema, QueryParamsSchema } from '@kitium-ai/schema';
+
+const app = express();
+app.use(express.json());
+
+// Automatic validation with middleware
+app.post(
+  '/api/users',
+  validateBody(CreateUserSchema),
+  (req: Request, res: Response) => {
+    // req.body is already validated and type-safe
+    const user = req.body;
+    res.status(201).json({ success: true, data: user });
+  },
+);
+
+// Error handling
+app.use(validationErrorHandler());
+```
+
+### Express.js Manual Validation
 
 ```typescript
 import express, { Request, Response } from 'express';
