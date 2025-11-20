@@ -170,3 +170,116 @@ export class ValidationError extends Error {
     this.name = 'ValidationError';
   }
 }
+
+/**
+ * Validates data against multiple schemas and returns combined results
+ * @param schemas - Array of schemas to validate against
+ * @param data - The data to validate
+ * @returns Combined validation result
+ */
+export function validateMultiple<T extends Record<string, unknown>>(
+  schemas: Record<string, ZodSchema>,
+  data: unknown,
+): ValidationResult<Partial<T>> {
+  const errors: ValidationErrorDetail[] = [];
+  const validated: Record<string, any> = {};
+
+  for (const [key, schema] of Object.entries(schemas)) {
+    const result = validate(schema, (data as any)?.[key]);
+    if (!result.success && result.errors) {
+      errors.push(
+        ...result.errors.map((err) => ({
+          ...err,
+          field: `${key}.${err.field}`,
+        })),
+      );
+    } else if (result.data) {
+      validated[key] = result.data;
+    }
+  }
+
+  return {
+    success: errors.length === 0,
+    data: errors.length === 0 ? (validated as Partial<T>) : undefined,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+/**
+ * Cross-field validation result
+ */
+export interface CrossFieldValidationResult<T> extends ValidationResult<T> {
+  fieldDependencies?: Record<string, string[]>;
+}
+
+/**
+ * Validates cross-field dependencies and relationships
+ * @param schema - The main Zod schema
+ * @param data - The data to validate
+ * @param rules - Array of cross-field validation rules
+ * @returns Validation result including cross-field errors
+ */
+export function validateWithCrossFields<T>(
+  schema: ZodSchema,
+  data: unknown,
+  rules: Array<{
+    condition: (data: any) => boolean;
+    message: string;
+    fields: string[];
+  }> = [],
+): CrossFieldValidationResult<T> {
+  const baseResult = validate<T>(schema, data);
+  const crossFieldErrors: ValidationErrorDetail[] = [];
+
+  if (baseResult.success && data) {
+    for (const rule of rules) {
+      if (!rule.condition(data)) {
+        for (const field of rule.fields) {
+          crossFieldErrors.push({
+            field,
+            message: rule.message,
+            code: 'CROSS_FIELD_VALIDATION_FAILED',
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    success: baseResult.success && crossFieldErrors.length === 0,
+    data: baseResult.success && crossFieldErrors.length === 0 ? baseResult.data : undefined,
+    errors: [
+      ...(baseResult.errors || []),
+      ...crossFieldErrors,
+    ],
+    fieldDependencies: rules.reduce(
+      (acc, rule, idx) => {
+        acc[`rule_${idx}`] = rule.fields;
+        return acc;
+      },
+      {} as Record<string, string[]>,
+    ),
+  };
+}
+
+/**
+ * Conditional validation - validates based on a condition
+ * @param schema - The Zod schema
+ * @param data - The data to validate
+ * @param condition - Function that determines if validation should proceed
+ * @returns Validation result
+ */
+export function validateConditional<T>(
+  schema: ZodSchema,
+  data: unknown,
+  condition: (data: unknown) => boolean,
+): ValidationResult<T> {
+  if (!condition(data)) {
+    return {
+      success: true,
+      data: data as T,
+    };
+  }
+
+  return validate<T>(schema, data);
+}
