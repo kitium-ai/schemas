@@ -47,3 +47,12 @@ export * from './schemas/common';
 
 // Validators and utilities
 export * from './validators';
+
+// Request validation middleware - Express.js
+export * from './middleware/express';
+
+// Request validation middleware - Fastify
+export * from './middleware/fastify';
+
+// Middleware utilities and helpers
+export * from './middleware/utils';
