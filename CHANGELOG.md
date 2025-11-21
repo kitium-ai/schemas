@@ -70,6 +70,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `src/index.ts` to export all middleware and utilities
 - All middleware functionality accessible from `@kitium-ai/schema` and `@kitium-ai/schema/middleware`
 
+### Fixed
+
+- **TypeScript Compilation Errors:**
+  - Resolved `ValidationOptions` export name conflict between Express and Fastify modules
+    - Renamed Fastify's `ValidationOptions` to `FastifyValidationOptions` to avoid export collision
+  - Fixed type casting issues in `withCrossFieldValidation` and `withConditionalValidation`
+    - Changed return types from `T` to `z.ZodEffects<T, any, any>` for proper type safety
+  - Removed unused imports in Express middleware
+  - Fixed unused variable warnings with proper underscore prefixes
+  - Added proper type annotations for error parameters in callback functions
+  - Fixed type safety in `createValidatorDecorator` and `createBatchValidator`
+
 ### Documentation
 
 - **README Updates:**
@@ -89,6 +101,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Details
 
 - **ValidationOptions Interface:**
+  - `stopOnError?: boolean` - Stop validation on first error
+  - `coerceTypes?: boolean` - Type coercion support
+
+- **FastifyValidationOptions Interface:**
   - `stopOnError?: boolean` - Stop validation on first error
   - `coerceTypes?: boolean` - Type coercion support
 
