@@ -3,7 +3,7 @@
  */
 
 import { ZodSchema } from 'zod';
-import { validate, ValidationResult, ValidationErrorDetail } from '../validators/index.js';
+import { validate, ValidationErrorDetail } from '../validators/index.js';
 
 type ExpressRequest = any;
 type ExpressResponse = any;

@@ -5,7 +5,7 @@
 import { ZodSchema } from 'zod';
 import { validate, ValidationErrorDetail } from '../validators/index.js';
 
-export interface ValidationOptions {
+export interface FastifyValidationOptions {
   stopOnError?: boolean;
   coerceTypes?: boolean;
 }
@@ -21,7 +21,7 @@ export interface FastifyValidationError {
  * @param options - Validation options
  * @returns Fastify hook function
  */
-export function createBodyValidationHook(schema: ZodSchema, options: ValidationOptions = {}) {
+export function createBodyValidationHook(schema: ZodSchema, options: FastifyValidationOptions = {}) {
   return async (request: any, reply: any) => {
     const result = validate(schema, request.body);
 
@@ -48,7 +48,7 @@ export function createBodyValidationHook(schema: ZodSchema, options: ValidationO
  * @param options - Validation options
  * @returns Fastify hook function
  */
-export function createQueryValidationHook(schema: ZodSchema, options: ValidationOptions = {}) {
+export function createQueryValidationHook(schema: ZodSchema, options: FastifyValidationOptions = {}) {
   return async (request: any, reply: any) => {
     const result = validate(schema, request.query);
 
@@ -75,7 +75,7 @@ export function createQueryValidationHook(schema: ZodSchema, options: Validation
  * @param options - Validation options
  * @returns Fastify hook function
  */
-export function createParamsValidationHook(schema: ZodSchema, options: ValidationOptions = {}) {
+export function createParamsValidationHook(schema: ZodSchema, options: FastifyValidationOptions = {}) {
   return async (request: any, reply: any) => {
     const result = validate(schema, request.params);
 
@@ -102,7 +102,7 @@ export function createParamsValidationHook(schema: ZodSchema, options: Validatio
  * @param options - Validation options
  * @returns Fastify hook function
  */
-export function createHeadersValidationHook(schema: ZodSchema, options: ValidationOptions = {}) {
+export function createHeadersValidationHook(schema: ZodSchema, options: FastifyValidationOptions = {}) {
   return async (request: any, reply: any) => {
     const result = validate(schema, request.headers);
 
@@ -154,7 +154,7 @@ export function createValidationPlugin(
     params?: ZodSchema;
     headers?: ZodSchema;
   },
-  options: ValidationOptions = {},
+  options: FastifyValidationOptions = {},
 ) {
   return async (fastify: any) => {
     if (schemas.body) {
