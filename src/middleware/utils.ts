@@ -14,7 +14,7 @@ import { ValidationErrorDetail } from '../validators/index.js';
 export function withCrossFieldValidation<T extends z.ZodTypeAny>(
   schema: T,
   validator: (data: z.infer<T>) => boolean | { field: string; message: string }[],
-): T {
+): z.ZodEffects<T, any, any> {
   return schema.refine(
     (data) => {
       const result = validator(data);
@@ -23,7 +23,7 @@ export function withCrossFieldValidation<T extends z.ZodTypeAny>(
     {
       message: 'Cross-field validation failed',
     },
-  ) as T;
+  );
 }
 
 /**
@@ -37,7 +37,7 @@ export function withConditionalValidation<T extends z.ZodTypeAny>(
   schema: T,
   condition: (data: z.infer<T>) => boolean,
   validator: (data: z.infer<T>) => boolean,
-): T {
+): z.ZodEffects<T, any, any> {
   return schema.refine(
     (data) => {
       if (condition(data)) {
@@ -48,7 +48,7 @@ export function withConditionalValidation<T extends z.ZodTypeAny>(
     {
       message: 'Conditional validation failed',
     },
-  ) as T;
+  );
 }
 
 /**
@@ -120,11 +120,11 @@ export function combineSchemas(schemas: ZodSchema[]): ZodSchema {
  * @param dataExtractor - Function to extract data from arguments
  * @returns Decorator function
  */
-export function createValidatorDecorator<T>(
+export function createValidatorDecorator(
   schema: ZodSchema,
   dataExtractor: (args: any[]) => unknown,
 ) {
-  return (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
+  return (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) => {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (...args: any[]) {
@@ -132,7 +132,7 @@ export function createValidatorDecorator<T>(
       const result = schema.safeParse(data);
 
       if (!result.success) {
-        const errors = result.error.errors.map((err) => ({
+        const errors = result.error.errors.map((err: any) => ({
           field: err.path.join('.'),
           message: err.message,
           code: err.code,
@@ -194,7 +194,7 @@ export function formatErrorsAs(
  * @param schema - Zod schema for validation
  * @returns Function to validate batch of items
  */
-export function createBatchValidator<T>(schema: ZodSchema) {
+export function createBatchValidator(schema: ZodSchema) {
   return (items: unknown[]) => {
     const results = items.map((item, index) => {
       const result = schema.safeParse(item);
@@ -203,7 +203,7 @@ export function createBatchValidator<T>(schema: ZodSchema) {
         success: result.success,
         data: result.success ? result.data : null,
         errors: !result.success
-          ? result.error.errors.map((err) => ({
+          ? result.error.errors.map((err: any) => ({
               field: `${index}.${err.path.join('.')}`,
               message: err.message,
               code: err.code,
