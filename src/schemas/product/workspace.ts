@@ -81,7 +81,10 @@ const WorkspaceSettingsSchema = z.object({
   maxMembers: z.number().positive().optional(),
   customBranding: z
     .object({
-      primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+      primaryColor: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/)
+        .optional(),
       logo: z.string().url().optional(),
     })
     .optional(),
@@ -105,7 +108,10 @@ export const WorkspaceSchema = z.object({
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, 'Workspace name is required').max(200),
-  slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]+$/)
+    .optional(),
   description: z.string().max(500).optional(),
   icon: z.string().optional(),
   visibility: z.enum(['private', 'internal', 'public']).optional().default('private'),
@@ -115,7 +121,10 @@ export const CreateWorkspaceSchema = z.object({
 
 export const UpdateWorkspaceSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]+$/)
+    .optional(),
   description: z.string().max(500).optional(),
   icon: z.string().optional(),
   status: z.enum(['active', 'archived']).optional(),

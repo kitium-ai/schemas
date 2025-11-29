@@ -73,7 +73,10 @@ export function validateOrThrow<T>(schema: ZodSchema, data: unknown): T {
  * @param data - The data to validate
  * @returns Promise with validation result
  */
-export async function validateAsync<T>(schema: ZodSchema, data: unknown): Promise<ValidationResult<T>> {
+export async function validateAsync<T>(
+  schema: ZodSchema,
+  data: unknown
+): Promise<ValidationResult<T>> {
   try {
     const validated = await schema.parseAsync(data);
     return {
@@ -123,7 +126,7 @@ export function formatValidationErrors(errors: ValidationErrorDetail[]): string 
 export function partialValidate<T>(
   schema: ZodSchema,
   data: unknown,
-  fields?: string[],
+  fields?: string[]
 ): ValidationResult<Partial<T>> {
   if (!fields || fields.length === 0) {
     return validate<Partial<T>>(schema, data);
@@ -164,7 +167,7 @@ export function isValid<T>(schema: ZodSchema, data: unknown): data is T {
 export class ValidationError extends Error {
   constructor(
     public errors: ValidationErrorDetail[],
-    message?: string,
+    message?: string
   ) {
     super(message || formatValidationErrors(errors));
     this.name = 'ValidationError';
@@ -179,19 +182,19 @@ export class ValidationError extends Error {
  */
 export function validateMultiple<T extends Record<string, unknown>>(
   schemas: Record<string, ZodSchema>,
-  data: unknown,
+  data: unknown
 ): ValidationResult<Partial<T>> {
   const errors: ValidationErrorDetail[] = [];
-  const validated: Record<string, any> = {};
+  const validated: Record<string, unknown> = {};
 
   for (const [key, schema] of Object.entries(schemas)) {
-    const result = validate(schema, (data as any)?.[key]);
+    const result = validate(schema, (data as Record<string, unknown>)?.[key]);
     if (!result.success && result.errors) {
       errors.push(
         ...result.errors.map((err) => ({
           ...err,
           field: `${key}.${err.field}`,
-        })),
+        }))
       );
     } else if (result.data) {
       validated[key] = result.data;
@@ -223,10 +226,10 @@ export function validateWithCrossFields<T>(
   schema: ZodSchema,
   data: unknown,
   rules: Array<{
-    condition: (data: any) => boolean;
+    condition: (data: unknown) => boolean;
     message: string;
     fields: string[];
-  }> = [],
+  }> = []
 ): CrossFieldValidationResult<T> {
   const baseResult = validate<T>(schema, data);
   const crossFieldErrors: ValidationErrorDetail[] = [];
@@ -248,16 +251,13 @@ export function validateWithCrossFields<T>(
   return {
     success: baseResult.success && crossFieldErrors.length === 0,
     data: baseResult.success && crossFieldErrors.length === 0 ? baseResult.data : undefined,
-    errors: [
-      ...(baseResult.errors || []),
-      ...crossFieldErrors,
-    ],
+    errors: [...(baseResult.errors || []), ...crossFieldErrors],
     fieldDependencies: rules.reduce(
       (acc, rule, idx) => {
         acc[`rule_${idx}`] = rule.fields;
         return acc;
       },
-      {} as Record<string, string[]>,
+      {} as Record<string, string[]>
     ),
   };
 }
@@ -272,7 +272,7 @@ export function validateWithCrossFields<T>(
 export function validateConditional<T>(
   schema: ZodSchema,
   data: unknown,
-  condition: (data: unknown) => boolean,
+  condition: (data: unknown) => boolean
 ): ValidationResult<T> {
   if (!condition(data)) {
     return {

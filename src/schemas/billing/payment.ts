@@ -67,7 +67,7 @@ export interface Payment extends Timestamps {
   paymentMethodId: UUID;
   amount: number;
   currency: string;
-  status: typeof PaymentStatus[keyof typeof PaymentStatus];
+  status: (typeof PaymentStatus)[keyof typeof PaymentStatus];
   externalTransactionId?: string;
   failureReason?: string;
   processedAt?: Date;
@@ -224,7 +224,9 @@ export const CreateInvoiceSchema = z.object({
 });
 
 export const UpdateInvoiceSchema = z.object({
-  status: z.enum(['draft', 'sent', 'viewed', 'partially_paid', 'paid', 'refunded', 'cancelled']).optional(),
+  status: z
+    .enum(['draft', 'sent', 'viewed', 'partially_paid', 'paid', 'refunded', 'cancelled'])
+    .optional(),
   notes: z.string().max(1000).optional(),
   items: z.array(InvoiceItemSchema).optional(),
   dueDate: z.date().optional(),

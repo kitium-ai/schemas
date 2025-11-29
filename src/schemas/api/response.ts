@@ -117,7 +117,7 @@ export const ApiErrorSchema = z.object({
   trackingId: z.string().optional(),
 });
 
-export const ApiResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
+export const ApiResponseSchema = <T extends z.ZodType>(dataSchema: T): z.ZodTypeAny =>
   z.object({
     success: z.boolean(),
     data: dataSchema.optional(),
@@ -132,7 +132,7 @@ export const ApiResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
       .optional(),
   });
 
-export const PaginatedApiResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
+export const PaginatedApiResponseSchema = <T extends z.ZodType>(dataSchema: T): z.ZodTypeAny =>
   z.object({
     success: z.boolean(),
     data: z.array(dataSchema).optional(),
@@ -154,7 +154,7 @@ export const PaginatedApiResponseSchema = <T extends z.ZodType>(dataSchema: T) =
       .optional(),
   });
 
-const BulkResponseItemSchema = <T extends z.ZodType>(dataSchema: T) =>
+const BulkResponseItemSchema = <T extends z.ZodType>(dataSchema: T): z.ZodTypeAny =>
   z.object({
     id: z.string(),
     data: dataSchema.optional(),
@@ -167,7 +167,7 @@ const BulkErrorSchema = z.object({
   error: ApiErrorSchema,
 });
 
-export const BulkResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
+export const BulkResponseSchema = <T extends z.ZodType>(dataSchema: T): z.ZodTypeAny =>
   z.object({
     success: z.boolean(),
     results: z.array(BulkResponseItemSchema(dataSchema)),

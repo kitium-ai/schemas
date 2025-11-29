@@ -13,8 +13,8 @@ import { ValidationErrorDetail } from '../validators/index.js';
  */
 export function withCrossFieldValidation<T extends z.ZodTypeAny>(
   schema: T,
-  validator: (data: z.infer<T>) => boolean | { field: string; message: string }[],
-): z.ZodEffects<T, any, any> {
+  validator: (data: z.infer<T>) => boolean | { field: string; message: string }[]
+): z.ZodEffects<T> {
   return schema.refine(
     (data) => {
       const result = validator(data);
@@ -22,7 +22,7 @@ export function withCrossFieldValidation<T extends z.ZodTypeAny>(
     },
     {
       message: 'Cross-field validation failed',
-    },
+    }
   );
 }
 
@@ -36,8 +36,8 @@ export function withCrossFieldValidation<T extends z.ZodTypeAny>(
 export function withConditionalValidation<T extends z.ZodTypeAny>(
   schema: T,
   condition: (data: z.infer<T>) => boolean,
-  validator: (data: z.infer<T>) => boolean,
-): z.ZodEffects<T, any, any> {
+  validator: (data: z.infer<T>) => boolean
+): z.ZodEffects<T> {
   return schema.refine(
     (data) => {
       if (condition(data)) {
@@ -47,7 +47,7 @@ export function withConditionalValidation<T extends z.ZodTypeAny>(
     },
     {
       message: 'Conditional validation failed',
-    },
+    }
   );
 }
 
@@ -56,7 +56,9 @@ export function withConditionalValidation<T extends z.ZodTypeAny>(
  * @param errors - Array of error arrays to merge
  * @returns Merged unique validation errors
  */
-export function mergeValidationErrors(...errors: ValidationErrorDetail[][]): ValidationErrorDetail[] {
+export function mergeValidationErrors(
+  ...errors: ValidationErrorDetail[][]
+): ValidationErrorDetail[] {
   const errorMap = new Map<string, ValidationErrorDetail>();
 
   for (const errorArray of errors) {
@@ -79,7 +81,7 @@ export function mergeValidationErrors(...errors: ValidationErrorDetail[][]): Val
  */
 export function filterErrorsByField(
   errors: ValidationErrorDetail[],
-  fields: string | string[],
+  fields: string | string[]
 ): ValidationErrorDetail[] {
   const fieldArray = Array.isArray(fields) ? fields : [fields];
   return errors.filter((error) => fieldArray.includes(error.field));
@@ -91,7 +93,7 @@ export function filterErrorsByField(
  * @returns Function that transforms validation errors
  */
 export function createErrorMessageMapper(
-  errorMap: Record<string, Record<string, string>>,
+  errorMap: Record<string, Record<string, string>>
 ): (errors: ValidationErrorDetail[]) => ValidationErrorDetail[] {
   return (errors: ValidationErrorDetail[]) => {
     return errors.map((error) => {
@@ -111,7 +113,10 @@ export function createErrorMessageMapper(
  * @returns Combined schema
  */
 export function combineSchemas(schemas: ZodSchema[]): ZodSchema {
-  return z.object({}).merge(schemas[0] as any);
+  if (schemas.length === 0) {
+    return z.object({});
+  }
+  return z.object({}).merge(schemas[0] as z.ZodObject<Record<string, z.ZodTypeAny>>);
 }
 
 /**
@@ -122,21 +127,23 @@ export function combineSchemas(schemas: ZodSchema[]): ZodSchema {
  */
 export function createValidatorDecorator(
   schema: ZodSchema,
-  dataExtractor: (args: any[]) => unknown,
-) {
-  return (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) => {
-    const originalMethod = descriptor.value;
+  dataExtractor: (args: unknown[]) => unknown
+): (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
+  return (_target: unknown, _propertyKey: string, descriptor: PropertyDescriptor) => {
+    const originalMethod = descriptor.value as (...args: unknown[]) => unknown;
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (...args: unknown[]): Promise<unknown> {
       const data = dataExtractor(args);
       const result = schema.safeParse(data);
 
       if (!result.success) {
-        const errors = result.error.errors.map((err: any) => ({
-          field: err.path.join('.'),
-          message: err.message,
-          code: err.code,
-        }));
+        const errors = result.error.errors.map(
+          (err: { path: unknown[]; message: string; code: string }) => ({
+            field: err.path.join('.'),
+            message: err.message,
+            code: err.code,
+          })
+        );
         throw new Error(`Validation failed: ${JSON.stringify(errors)}`);
       }
 
@@ -152,16 +159,13 @@ export function createValidatorDecorator(
  * @param data - Data to sanitize
  * @returns Sanitized data
  */
-export function sanitizeData(data: Record<string, any>): Record<string, any> {
-  return Object.entries(data).reduce(
-    (acc, [key, value]) => {
-      if (value !== undefined && value !== null) {
-        acc[key] = value;
-      }
-      return acc;
-    },
-    {} as Record<string, any>,
-  );
+export function sanitizeData(data: Record<string, unknown>): Record<string, unknown> {
+  return Object.entries(data).reduce((acc: Record<string, unknown>, [key, value]) => {
+    if (value !== undefined && value !== null) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
 }
 
 /**
@@ -172,7 +176,7 @@ export function sanitizeData(data: Record<string, any>): Record<string, any> {
  */
 export function formatErrorsAs(
   errors: ValidationErrorDetail[],
-  format: 'json' | 'csv' | 'html' = 'json',
+  format: 'json' | 'csv' | 'html' = 'json'
 ): string {
   switch (format) {
     case 'csv':
@@ -180,7 +184,9 @@ export function formatErrorsAs(
     case 'html':
       return (
         '<ul>' +
-        errors.map((e) => `<li><strong>${e.field}:</strong> ${e.message} (${e.code})</li>`).join('') +
+        errors
+          .map((e) => `<li><strong>${e.field}:</strong> ${e.message} (${e.code})</li>`)
+          .join('') +
         '</ul>'
       );
     case 'json':
@@ -194,8 +200,10 @@ export function formatErrorsAs(
  * @param schema - Zod schema for validation
  * @returns Function to validate batch of items
  */
-export function createBatchValidator(schema: ZodSchema) {
-  return (items: unknown[]) => {
+export function createBatchValidator(
+  schema: ZodSchema
+): (items: unknown[]) => Record<string, unknown> {
+  return (items: unknown[]): Record<string, unknown> => {
     const results = items.map((item, index) => {
       const result = schema.safeParse(item);
       return {
@@ -203,7 +211,7 @@ export function createBatchValidator(schema: ZodSchema) {
         success: result.success,
         data: result.success ? result.data : null,
         errors: !result.success
-          ? result.error.errors.map((err: any) => ({
+          ? result.error.errors.map((err: { path: unknown[]; message: string; code: string }) => ({
               field: `${index}.${err.path.join('.')}`,
               message: err.message,
               code: err.code,
@@ -241,6 +249,9 @@ export function createTypeGuard<T>(schema: ZodSchema): (value: unknown) => value
  * @param extensions - Additional schema definitions to merge
  * @returns Merged schema
  */
-export function extendSchema(baseSchema: z.ZodObject<any>, extensions: Record<string, ZodSchema>) {
-  return baseSchema.extend(extensions as any);
+export function extendSchema(
+  baseSchema: z.ZodObject<Record<string, z.ZodTypeAny>>,
+  extensions: Record<string, ZodSchema>
+): z.ZodObject<Record<string, z.ZodTypeAny>> {
+  return baseSchema.extend(extensions);
 }

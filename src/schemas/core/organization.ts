@@ -89,8 +89,14 @@ const OrganizationSettingsSchema = z.object({
   dataResidency: z.string().optional(),
   customBranding: z
     .object({
-      primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-      secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+      primaryColor: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/)
+        .optional(),
+      secondaryColor: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/)
+        .optional(),
       customDomain: z.string().optional(),
     })
     .optional(),
@@ -131,7 +137,10 @@ export const CreateOrganizationSchema = z.object({
 
 export const UpdateOrganizationSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]+$/)
+    .optional(),
   description: z.string().max(500).optional(),
   logo: z.string().url().optional(),
   website: z.string().url().optional(),

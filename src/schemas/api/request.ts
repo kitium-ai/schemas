@@ -41,7 +41,18 @@ export interface ListRequest extends QueryParams {
 
 export interface FilterCondition {
   field: string;
-  operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'contains' | 'exists' | 'regex';
+  operator:
+    | 'eq'
+    | 'ne'
+    | 'gt'
+    | 'gte'
+    | 'lt'
+    | 'lte'
+    | 'in'
+    | 'nin'
+    | 'contains'
+    | 'exists'
+    | 'regex';
   value: unknown;
 }
 
@@ -62,7 +73,19 @@ export interface AdvancedFilterRequest {
  */
 const FilterConditionSchema = z.object({
   field: z.string().min(1),
-  operator: z.enum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'contains', 'exists', 'regex']),
+  operator: z.enum([
+    'eq',
+    'ne',
+    'gt',
+    'gte',
+    'lt',
+    'lte',
+    'in',
+    'nin',
+    'contains',
+    'exists',
+    'regex',
+  ]),
   value: z.unknown(),
 });
 
@@ -104,7 +127,18 @@ export const AdvancedFilterRequestSchema = z.object({
   search: z.string().optional(),
 });
 
-export const ApiRequestSchema = <T extends z.ZodType>(dataSchema: T) =>
+export const ApiRequestSchema = <T extends z.ZodType>(
+  dataSchema: T
+): z.ZodObject<{
+  data: T;
+  metadata: z.ZodOptional<
+    z.ZodObject<{
+      requestId: z.ZodString;
+      timestamp: z.ZodDate;
+      version: z.ZodString;
+    }>
+  >;
+}> =>
   z.object({
     data: dataSchema,
     metadata: z
@@ -114,9 +148,28 @@ export const ApiRequestSchema = <T extends z.ZodType>(dataSchema: T) =>
         version: z.string(),
       })
       .optional(),
-  });
+  }) as z.ZodObject<{
+    data: T;
+    metadata: z.ZodOptional<
+      z.ZodObject<{
+        requestId: z.ZodString;
+        timestamp: z.ZodDate;
+        version: z.ZodString;
+      }>
+    >;
+  }>;
 
-export const BulkRequestSchema = <T extends z.ZodType>(itemSchema: T) =>
+export const BulkRequestSchema = <T extends z.ZodType>(
+  itemSchema: T
+): z.ZodObject<{
+  items: z.ZodArray<T>;
+  metadata: z.ZodOptional<
+    z.ZodObject<{
+      requestId: z.ZodString;
+      timestamp: z.ZodDate;
+    }>
+  >;
+}> =>
   z.object({
     items: z.array(itemSchema).min(1).max(1000),
     metadata: z

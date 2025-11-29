@@ -108,7 +108,9 @@ export const IntegrationSchema = z.object({
 
 export const CreateIntegrationSchema = z.object({
   name: z.string().min(1, 'Integration name is required').max(200),
-  key: z.string().regex(/^[a-z0-9_]+$/, 'Key must contain only lowercase letters, numbers, and underscores'),
+  key: z
+    .string()
+    .regex(/^[a-z0-9_]+$/, 'Key must contain only lowercase letters, numbers, and underscores'),
   description: z.string().max(500).optional(),
   type: z.enum(['api', 'webhook', 'oauth', 'saas', 'custom']),
   config: z.record(z.unknown()),
@@ -119,7 +121,7 @@ export const CreateIntegrationSchema = z.object({
         type: z.enum(['api_key', 'oauth_token', 'webhook_secret', 'custom']),
         value: z.string().min(1),
         expiresAt: z.date().optional(),
-      }),
+      })
     )
     .optional(),
   metadata: z.record(z.unknown()).optional(),

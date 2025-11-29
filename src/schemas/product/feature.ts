@@ -42,7 +42,17 @@ export interface TargetAudience {
 
 export interface AudienceCondition {
   attribute: string;
-  operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'not_in';
+  operator:
+    | 'equals'
+    | 'not_equals'
+    | 'contains'
+    | 'not_contains'
+    | 'gt'
+    | 'gte'
+    | 'lt'
+    | 'lte'
+    | 'in'
+    | 'not_in';
   value: unknown;
 }
 
@@ -132,7 +142,9 @@ export const FeatureSchema = z.object({
 
 export const CreateFeatureSchema = z.object({
   name: z.string().min(1, 'Feature name is required').max(200),
-  key: z.string().regex(/^[a-z0-9_]+$/, 'Key must contain only lowercase letters, numbers, and underscores'),
+  key: z
+    .string()
+    .regex(/^[a-z0-9_]+$/, 'Key must contain only lowercase letters, numbers, and underscores'),
   description: z.string().max(500).optional(),
   type: z.enum(['feature', 'experiment', 'release']),
   enabled: z.boolean().optional().default(false),

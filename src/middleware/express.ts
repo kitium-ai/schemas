@@ -5,9 +5,19 @@
 import { ZodSchema } from 'zod';
 import { validate, ValidationErrorDetail } from '../validators/index.js';
 
-type ExpressRequest = any;
-type ExpressResponse = any;
-type ExpressNextFunction = (error?: any) => void;
+export type ExpressRequest = {
+  body: unknown;
+  query: Record<string, unknown>;
+  params: Record<string, unknown>;
+  headers: Record<string, unknown>;
+  [key: string]: unknown;
+};
+export type ExpressResponse = {
+  status(code: number): ExpressResponse;
+  json(data: unknown): ExpressResponse;
+  [key: string]: unknown;
+};
+export type ExpressNextFunction = (error?: Error | unknown) => void;
 
 export interface ValidationOptions {
   stopOnError?: boolean;
@@ -15,7 +25,7 @@ export interface ValidationOptions {
 }
 
 export interface ValidatedRequest extends ExpressRequest {
-  validated?: Record<string, any>;
+  validated?: Record<string, unknown>;
   validationErrors?: ValidationErrorDetail[];
 }
 
@@ -25,23 +35,27 @@ export interface ValidatedRequest extends ExpressRequest {
  * @param options - Validation options
  * @returns Express middleware function
  */
-export function validateBody(schema: ZodSchema, options: ValidationOptions = {}) {
-  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+export function validateBody(
+  schema: ZodSchema,
+  options: ValidationOptions = {}
+): (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
+  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     const result = validate(schema, req.body);
 
     if (!result.success && result.errors) {
       if (options.stopOnError) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: 'Request validation failed',
           errors: result.errors,
         });
+        return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       req.validated = req.validated || {};
       req.validated.body = result.data;
-      req.body = result.data;
+      req.body = result.data as Record<string, unknown>;
     }
 
     next();
@@ -54,23 +68,27 @@ export function validateBody(schema: ZodSchema, options: ValidationOptions = {})
  * @param options - Validation options
  * @returns Express middleware function
  */
-export function validateQuery(schema: ZodSchema, options: ValidationOptions = {}) {
-  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+export function validateQuery(
+  schema: ZodSchema,
+  options: ValidationOptions = {}
+): (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
+  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     const result = validate(schema, req.query);
 
     if (!result.success && result.errors) {
       if (options.stopOnError) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: 'Query validation failed',
           errors: result.errors,
         });
+        return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       req.validated = req.validated || {};
       req.validated.query = result.data;
-      req.query = result.data;
+      req.query = result.data as Record<string, unknown>;
     }
 
     next();
@@ -83,23 +101,27 @@ export function validateQuery(schema: ZodSchema, options: ValidationOptions = {}
  * @param options - Validation options
  * @returns Express middleware function
  */
-export function validateParams(schema: ZodSchema, options: ValidationOptions = {}) {
-  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+export function validateParams(
+  schema: ZodSchema,
+  options: ValidationOptions = {}
+): (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
+  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     const result = validate(schema, req.params);
 
     if (!result.success && result.errors) {
       if (options.stopOnError) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: 'Route parameter validation failed',
           errors: result.errors,
         });
+        return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       req.validated = req.validated || {};
       req.validated.params = result.data;
-      req.params = result.data;
+      req.params = result.data as Record<string, unknown>;
     }
 
     next();
@@ -112,17 +134,21 @@ export function validateParams(schema: ZodSchema, options: ValidationOptions = {
  * @param options - Validation options
  * @returns Express middleware function
  */
-export function validateHeaders(schema: ZodSchema, options: ValidationOptions = {}) {
-  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+export function validateHeaders(
+  schema: ZodSchema,
+  options: ValidationOptions = {}
+): (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
+  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     const result = validate(schema, req.headers);
 
     if (!result.success && result.errors) {
       if (options.stopOnError) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: 'Header validation failed',
           errors: result.errors,
         });
+        return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
     } else if (result.data) {
@@ -139,14 +165,19 @@ export function validateHeaders(schema: ZodSchema, options: ValidationOptions = 
  * Should be placed after all other middleware
  * @returns Express error handler middleware
  */
-export function validationErrorHandler() {
-  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => {
+export function validationErrorHandler(): (
+  req: ValidatedRequest,
+  res: ExpressResponse,
+  next: ExpressNextFunction
+) => void {
+  return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     if (req.validationErrors && req.validationErrors.length > 0) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Request validation failed',
         errors: req.validationErrors,
       });
+      return;
     }
     next();
   };
@@ -165,8 +196,8 @@ export function validateRequest(
     params?: ZodSchema;
     headers?: ZodSchema;
   },
-  options: ValidationOptions = {},
-) {
+  options: ValidationOptions = {}
+): Array<(req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void> {
   return [
     ...(schemas.body ? [validateBody(schemas.body, options)] : []),
     ...(schemas.query ? [validateQuery(schemas.query, options)] : []),

@@ -40,7 +40,7 @@ export interface Subscription extends Timestamps {
   id: UUID;
   organizationId: UUID;
   planId: UUID;
-  status: typeof SubscriptionStatus[keyof typeof SubscriptionStatus];
+  status: (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
   startDate: Date;
   renewalDate?: Date;
   cancelledAt?: Date;
@@ -109,7 +109,7 @@ export interface CreateSubscriptionInput {
 export interface UpdateSubscriptionInput {
   planId?: UUID;
   autoRenew?: boolean;
-  status?: typeof SubscriptionStatus[keyof typeof SubscriptionStatus];
+  status?: (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
   metadata?: Record<string, unknown>;
 }
 
@@ -159,7 +159,9 @@ export const PlanSchema = z.object({
 
 export const CreatePlanSchema = z.object({
   name: z.string().min(1, 'Plan name is required').max(200),
-  key: z.string().regex(/^[a-z0-9_]+$/, 'Key must contain only lowercase letters, numbers, and underscores'),
+  key: z
+    .string()
+    .regex(/^[a-z0-9_]+$/, 'Key must contain only lowercase letters, numbers, and underscores'),
   description: z.string().max(500).optional(),
   price: z.number().min(0, 'Price must be non-negative'),
   currency: z.string().length(3, 'Currency must be a 3-character ISO code'),
