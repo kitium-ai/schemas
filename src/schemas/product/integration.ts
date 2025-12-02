@@ -3,13 +3,7 @@
  */
 
 import { z } from 'zod';
-import {
-  UUID,
-  Timestamps,
-  DataResidency,
-  SecretMetadata,
-  AuditStamp,
-} from '../../types/common';
+import { UUID, Timestamps, DataResidency, SecretMetadata, AuditStamp } from '../../types/common';
 
 /**
  * Integration interface definitions

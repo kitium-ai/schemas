@@ -1,5 +1,4 @@
-import type { ZodSchema, ZodTypeAny } from 'zod';
-import { z } from 'zod';
+import { z, type ZodSchema, type ZodTypeAny } from 'zod';
 import { validate, validateOrThrow, type ValidationErrorDetail } from '../validators/index.js';
 
 export interface NextValidationResult<T> {
@@ -59,9 +58,8 @@ export interface JsonSchema {
 
 function unwrap(schema: ZodTypeAny): ZodTypeAny {
   let current: ZodTypeAny = schema;
-  // eslint-disable-next-line no-underscore-dangle
+
   while (current._def?.typeName === z.ZodFirstPartyTypeKind.ZodEffects) {
-    // eslint-disable-next-line no-underscore-dangle
     current = (current._def as { schema: ZodTypeAny }).schema;
   }
   return current;
@@ -69,16 +67,15 @@ function unwrap(schema: ZodTypeAny): ZodTypeAny {
 
 function convertSchema(schema: ZodTypeAny): JsonSchema {
   const unwrapped = unwrap(schema);
-  // eslint-disable-next-line no-underscore-dangle
+
   switch (unwrapped._def.typeName) {
     case z.ZodFirstPartyTypeKind.ZodObject: {
-      // eslint-disable-next-line no-underscore-dangle
       const shape = (unwrapped._def as { shape: () => Record<string, ZodTypeAny> }).shape();
       const properties: Record<string, JsonSchema> = {};
       const required: string[] = [];
       for (const [key, value] of Object.entries(shape)) {
         properties[key] = convertSchema(value);
-        // eslint-disable-next-line no-underscore-dangle
+
         if (value._def.typeName !== z.ZodFirstPartyTypeKind.ZodOptional) {
           required.push(key);
         }
@@ -89,13 +86,14 @@ function convertSchema(schema: ZodTypeAny): JsonSchema {
       }
       return schema;
     }
-    case z.ZodFirstPartyTypeKind.ZodString:
-      // eslint-disable-next-line no-underscore-dangle
-      const stringFormat = (unwrapped._def as { checks?: Array<{ kind: string }> }).checks?.[0]?.kind;
+    case z.ZodFirstPartyTypeKind.ZodString: {
+      const stringFormat = (unwrapped._def as { checks?: Array<{ kind: string }> }).checks?.[0]
+        ?.kind;
       return {
         type: 'string',
         ...(stringFormat ? { format: stringFormat } : {}),
       };
+    }
     case z.ZodFirstPartyTypeKind.ZodNumber:
       return { type: 'number' };
     case z.ZodFirstPartyTypeKind.ZodBoolean:
@@ -103,24 +101,23 @@ function convertSchema(schema: ZodTypeAny): JsonSchema {
     case z.ZodFirstPartyTypeKind.ZodDate:
       return { type: 'string', format: 'date-time' };
     case z.ZodFirstPartyTypeKind.ZodEnum:
-      // eslint-disable-next-line no-underscore-dangle
       return { type: 'string', enum: [...(unwrapped._def as { values: string[] }).values] };
     case z.ZodFirstPartyTypeKind.ZodArray:
-      // eslint-disable-next-line no-underscore-dangle
       return { type: 'array', items: convertSchema((unwrapped._def as { type: ZodTypeAny }).type) };
     case z.ZodFirstPartyTypeKind.ZodOptional:
-      // eslint-disable-next-line no-underscore-dangle
       return convertSchema((unwrapped._def as { innerType: ZodTypeAny }).innerType);
     case z.ZodFirstPartyTypeKind.ZodUnion:
-      // eslint-disable-next-line no-underscore-dangle
       return {
-        anyOf: (unwrapped._def as { options: ZodTypeAny[] }).options.map((option) => convertSchema(option)),
+        anyOf: (unwrapped._def as { options: ZodTypeAny[] }).options.map((option) =>
+          convertSchema(option)
+        ),
       };
     case z.ZodFirstPartyTypeKind.ZodRecord:
-      // eslint-disable-next-line no-underscore-dangle
       return {
         type: 'object',
-        additionalProperties: convertSchema((unwrapped._def as { valueType: ZodTypeAny }).valueType),
+        additionalProperties: convertSchema(
+          (unwrapped._def as { valueType: ZodTypeAny }).valueType
+        ),
       };
     default:
       return { type: 'string' };
@@ -135,7 +132,11 @@ export function exportJsonSchema(schema: ZodSchema, title?: string): JsonSchema 
   return json;
 }
 
-export function toOpenAPIParameter(schema: ZodSchema, name: string, location: 'query' | 'path' | 'header') {
+export function toOpenAPIParameter(
+  schema: ZodSchema,
+  name: string,
+  location: 'query' | 'path' | 'header'
+) {
   return {
     name,
     in: location,

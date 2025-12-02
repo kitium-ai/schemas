@@ -3,7 +3,7 @@
  *
  * Provides optional logging hooks and structured problem responses for
  * request validation with observability-friendly metadata.
-*/
+ */
 
 import type { ZodSchema } from 'zod';
 import { validate, type ValidationErrorDetail } from '../validators/index.js';

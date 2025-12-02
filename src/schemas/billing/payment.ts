@@ -201,9 +201,7 @@ const DataClassificationSchema = z.object({
   pii: z.nativeEnum(PIIClassification),
   residency: DataResidencySchema.optional(),
   redactionPaths: z.array(z.string()).optional(),
-  allowedUses: z
-    .array(z.enum(['analytics', 'operations', 'support']))
-    .optional(),
+  allowedUses: z.array(z.enum(['analytics', 'operations', 'support'])).optional(),
 });
 
 export const PaymentMethodSchema = z.object({

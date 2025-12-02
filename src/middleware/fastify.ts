@@ -72,7 +72,8 @@ export function createBodyValidationHook(
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const activeLogger = options.logger ?? logger;
     const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
-    const correlationId = (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
+    const correlationId =
+      (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
 
     if (options.hardening?.maxBodyBytes) {
       const contentLengthHeader = request.headers?.['content-length'];
@@ -144,7 +145,8 @@ export function createQueryValidationHook(
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const activeLogger = options.logger ?? logger;
     const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
-    const correlationId = (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
+    const correlationId =
+      (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, request.query);
 
     if (!result.success && result.errors) {
@@ -184,7 +186,8 @@ export function createParamsValidationHook(
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const activeLogger = options.logger ?? logger;
     const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
-    const correlationId = (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
+    const correlationId =
+      (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, request.params);
 
     if (!result.success && result.errors) {
@@ -224,7 +227,8 @@ export function createHeadersValidationHook(
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const activeLogger = options.logger ?? logger;
     const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
-    const correlationId = (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
+    const correlationId =
+      (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, request.headers);
 
     if (!result.success && result.errors) {
