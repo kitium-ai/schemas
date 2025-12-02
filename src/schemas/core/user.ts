@@ -3,7 +3,16 @@
  */
 
 import { z } from 'zod';
-import { UUID, Email, Timestamps } from '../../types/common';
+import {
+  UUID,
+  Email,
+  Timestamps,
+  AuditStamp,
+  DataClassification,
+  PIIClassification,
+  DataResidency,
+  Locale,
+} from '../../types/common';
 
 /**
  * User interface definition
@@ -22,6 +31,11 @@ export interface User extends Timestamps {
   lastLoginAt?: Date;
   preferences?: UserPreferences;
   metadata?: Record<string, unknown>;
+  tenantId?: UUID;
+  locale?: Locale;
+  dataClassification?: DataClassification;
+  residency?: DataResidency;
+  audit?: AuditStamp;
 }
 
 export interface UserPreferences {
@@ -42,6 +56,7 @@ export interface CreateUserInput {
   password: string;
   phone?: string;
   metadata?: Record<string, unknown>;
+  tenantId?: UUID;
 }
 
 export interface UpdateUserInput {
@@ -52,11 +67,38 @@ export interface UpdateUserInput {
   bio?: string;
   preferences?: UserPreferences;
   metadata?: Record<string, unknown>;
+  locale?: Locale;
+  dataClassification?: DataClassification;
+  residency?: DataResidency;
 }
 
 /**
  * Zod validation schemas
  */
+const DataResidencySchema = z.object({
+  region: z.string().min(2),
+  dataCenter: z.string().optional(),
+  restrictCrossRegion: z.boolean().optional(),
+});
+
+const AuditStampSchema = z.object({
+  createdBy: z.string().uuid(),
+  updatedBy: z.string().uuid().optional(),
+  requestId: z.string().optional(),
+  source: z.string().optional(),
+  sourceRegion: z.string().optional(),
+  tenantId: z.string().uuid().optional(),
+});
+
+const DataClassificationSchema = z.object({
+  pii: z.nativeEnum(PIIClassification),
+  residency: DataResidencySchema.optional(),
+  redactionPaths: z.array(z.string()).optional(),
+  allowedUses: z
+    .array(z.enum(['analytics', 'operations', 'support']))
+    .optional(),
+});
+
 export const UserPreferencesSchema = z.object({
   theme: z.enum(['light', 'dark', 'auto']).optional(),
   language: z.string().optional(),
@@ -84,6 +126,11 @@ export const UserSchema = z.object({
   lastLoginAt: z.date().optional(),
   preferences: UserPreferencesSchema.optional(),
   metadata: z.record(z.unknown()).optional(),
+  tenantId: z.string().uuid().optional(),
+  locale: z.string().optional(),
+  dataClassification: DataClassificationSchema.optional(),
+  residency: DataResidencySchema.optional(),
+  audit: AuditStampSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -101,6 +148,7 @@ export const CreateUserSchema = z.object({
     .regex(/[^A-Za-z0-9]/, 'Password must contain a special character'),
   phone: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
+  tenantId: z.string().uuid().optional(),
 });
 
 export const UpdateUserSchema = z.object({
@@ -111,6 +159,9 @@ export const UpdateUserSchema = z.object({
   bio: z.string().max(500).optional(),
   preferences: UserPreferencesSchema.optional(),
   metadata: z.record(z.unknown()).optional(),
+  locale: z.string().optional(),
+  dataClassification: DataClassificationSchema.optional(),
+  residency: DataResidencySchema.optional(),
 });
 
 export type ValidatedUser = z.infer<typeof UserSchema>;

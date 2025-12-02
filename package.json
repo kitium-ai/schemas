@@ -154,10 +154,6 @@
     "vitest": "^2.0.0"
   },
   "dependencies": {
-    "@kitiumai/error": "^2.0.1",
-    "@kitiumai/logger": "^2.0.1",
-    "@kitiumai/types": "^2.0.1",
-    "@kitiumai/utils-ts": "^2.0.2",
     "zod": "^3.23.8"
   },
   "engines": {

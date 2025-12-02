@@ -793,6 +793,111 @@ export default async function handler(
 }
 ```
 
+### Framework adapters and OpenAPI helpers
+
+Reusable adapters make it simple to plug the same schemas into other popular stacks:
+
+- **Next.js App Router**: `withNextValidation(schema, handler)` wraps route handlers and returns a typed `Response` when validation fails.
+- **NestJS**: `createNestValidationPipe(schema)` returns a pipe-compatible transformer that throws `ValidationError` on failure.
+- **tRPC / GraphQL**: `createTRPCInputValidator(schema)` validates router inputs without bringing extra runtime dependencies.
+- **OpenAPI / JSON Schema**: `exportJsonSchema(schema)` and `toOpenAPIParameter(schema, name, location)` provide exportable specs for governance and documentation.
+
+```typescript
+import { withNextValidation, createNestValidationPipe, exportJsonSchema } from '@kitium-ai/schema';
+import { CreateUserSchema } from '@kitium-ai/schema';
+
+// Next.js App Router
+export const POST = withNextValidation(CreateUserSchema, async (_req, user) => {
+  return new Response(JSON.stringify({ created: true, user }), {
+    status: 201,
+    headers: { 'content-type': 'application/json' },
+  });
+});
+
+// NestJS pipe
+export const CreateUserPipe = createNestValidationPipe(CreateUserSchema);
+
+// JSON Schema export for governance tools
+const userJsonSchema = exportJsonSchema(CreateUserSchema, 'CreateUser');
+```
+
+### Security, compliance, and residency defaults
+
+Schemas include audit stamps, tenant ownership, data residency metadata, and PII classification helpers so regulated deployments start with safe defaults.
+
+```typescript
+import { UserSchema, validate } from '@kitium-ai/schema';
+
+const result = validate(UserSchema, {
+  id: 'uuid',
+  email: 'user@example.com',
+  firstName: 'Ada',
+  lastName: 'Lovelace',
+  status: 'active',
+  emailVerified: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  tenantId: 'tenant-uuid',
+  dataClassification: {
+    pii: 'high',
+    redactionPaths: ['preferences.notifications.sms'],
+  },
+  residency: { region: 'eu-west-1', restrictCrossRegion: true },
+  audit: { createdBy: 'admin-uuid', requestId: 'req-123' },
+});
+```
+
+### Middleware hardening controls
+
+Express and Fastify middleware support secure defaults without extra packages:
+
+- `hardening.maxBodyBytes` – reject oversized payloads with a 413 response.
+- `hardening.allowedContentTypes` – enforce an allowlist to limit attack surface.
+- `hardening.correlationIdHeader` – propagate request IDs into structured error responses for observability.
+- `logger` – inject your own logger; the library uses console-based no-op logging by default to stay dependency-light.
+
+```typescript
+app.post(
+  '/integrations',
+  validateBody(CreateIntegrationSchema, {
+    hardening: { maxBodyBytes: 1024 * 128, allowedContentTypes: ['application/json'] },
+    logger: customLogger,
+  }),
+  handler,
+);
+```
+
+### Extensibility playbook
+
+- **Namespacing**: export domain-specific schemas from folders such as `schemas/commerce` or `schemas/hr` to prevent collisions in large monorepos.
+- **Composition over mutation**: use `extendSchema` and `combineSchemas` utilities to layer organization-specific fields while preserving the upstream contract.
+- **Override hooks**: wrap middleware with the `logger` and `errorHandler` options to map errors into your platform-wide problem details format.
+
+```typescript
+import { extendSchema, UserSchema } from '@kitium-ai/schema';
+
+const EnterpriseUserSchema = extendSchema(UserSchema, {
+  attributes: z.record(z.string()),
+  dataClassification: z
+    .object({ pii: z.enum(['low', 'medium', 'high']), allowedUses: z.array(z.string()).optional() })
+    .optional(),
+});
+```
+
+### Versioning, support, and migration policy
+
+- **Semantic versioning**: breaking changes ship only in majors; minors remain backward compatible with deprecation warnings documented below.
+- **LTS windows**: every major stays supported for 12 months with security fixes; the two latest minors receive patch support.
+- **Deprecations**: deprecated APIs are announced in the `Unreleased` changelog with at least one minor of overlap and migration notes.
+- **Migration guides**: see the `CHANGELOG.md` and README examples for side-by-side before/after guidance when middleware or schemas evolve.
+
+### Performance, compatibility, and quality gates
+
+- **Zero runtime dependencies** beyond Zod with optional logging hooks for lean bundles; tree-shake by importing from deep paths (e.g., `@kitium-ai/schema/core`).
+- **Compatibility matrix**: tested against Node.js >= 18 and TypeScript >= 5.6 via `npm test`, `npm run lint`, and `npm run type-check`.
+- **Benchmarks**: validation utilities avoid heavy abstractions; middleware short-circuits on size/content-type checks before parsing.
+- **Security hygiene**: credential schemas mark secrets as encrypted and support rotation metadata; integrations include residency flags for data governance.
+
 ## Migration Guide
 
 ### From Raw Objects

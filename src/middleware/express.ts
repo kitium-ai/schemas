@@ -1,16 +1,34 @@
 /**
  * Express.js middleware for request validation
  *
- * Integrates with @kitiumai/error and @kitiumai/logger for comprehensive
- * request validation with structured error handling and observability.
- */
+ * Provides optional logging hooks and structured problem responses for
+ * request validation with observability-friendly metadata.
+*/
 
 import type { ZodSchema } from 'zod';
-import { getLogger } from '@kitiumai/logger';
-import { type ProblemDetails } from '@kitiumai/error';
 import { validate, type ValidationErrorDetail } from '../validators/index.js';
 
-const logger = getLogger();
+export interface ProblemDetails {
+  type?: string;
+  title: string;
+  status?: number;
+  detail?: string;
+  instance?: string;
+  extensions?: Record<string, unknown>;
+}
+
+type MiddlewareLogger = Partial<{
+  warn: (message: string, meta?: Record<string, unknown>) => void;
+  error: (message: string, meta?: Record<string, unknown>) => void;
+  info: (message: string, meta?: Record<string, unknown>) => void;
+  debug: (message: string, meta?: Record<string, unknown>) => void;
+}>;
+
+let logger: MiddlewareLogger = console;
+
+export function configureMiddlewareLogger(custom: MiddlewareLogger): void {
+  logger = custom;
+}
 
 export type ExpressRequest = {
   body: unknown;
@@ -30,11 +48,21 @@ export interface ValidationOptions {
   stopOnError?: boolean;
   coerceTypes?: boolean;
   errorHandler?: (errors: ValidationErrorDetail[]) => ProblemDetails;
+  hardening?: {
+    maxBodyBytes?: number;
+    allowedContentTypes?: string[];
+    correlationIdHeader?: string;
+  };
+  logger?: MiddlewareLogger;
 }
 
 export interface ValidatedRequest extends ExpressRequest {
   validated?: Record<string, unknown>;
   validationErrors?: ValidationErrorDetail[];
+}
+
+function sendProblem(res: ExpressResponse, problem: ProblemDetails): void {
+  res.status(problem.status ?? 400).json({ success: false, message: problem.title, ...problem });
 }
 
 /**
@@ -48,12 +76,52 @@ export function validateBody(
   options: ValidationOptions = {}
 ): (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
   return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
+    const activeLogger = options.logger ?? logger;
+    const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
+    const correlationId = (req.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
+
+    if (options.hardening?.maxBodyBytes) {
+      const contentLengthHeader = req.headers?.['content-length'];
+      const contentLength =
+        typeof contentLengthHeader === 'string' ? Number(contentLengthHeader) : Number.NaN;
+      if (!Number.isNaN(contentLength) && contentLength > options.hardening.maxBodyBytes) {
+        const problemDetails: ProblemDetails = {
+          type: 'https://docs.kitium.ai/errors/payload_too_large',
+          title: 'Payload too large',
+          status: 413,
+          detail: 'The request body exceeds the configured limit.',
+          extensions: { code: 'schemas/body_size_exceeded', correlationId },
+        };
+        sendProblem(res, problemDetails);
+        return;
+      }
+    }
+
+    if (options.hardening?.allowedContentTypes?.length) {
+      const contentType = String(req.headers?.['content-type'] ?? '').toLowerCase();
+      const isAllowed = options.hardening.allowedContentTypes.some((allowed) =>
+        contentType.includes(allowed.toLowerCase())
+      );
+      if (!isAllowed) {
+        const problemDetails: ProblemDetails = {
+          type: 'https://docs.kitium.ai/errors/unsupported_media_type',
+          title: 'Unsupported content type',
+          status: 415,
+          detail: `Allowed content types: ${options.hardening.allowedContentTypes.join(', ')}`,
+          extensions: { code: 'schemas/content_type_rejected', correlationId },
+        };
+        sendProblem(res, problemDetails);
+        return;
+      }
+    }
+
     const result = validate(schema, req.body);
 
     if (!result.success && result.errors) {
-      logger.warn('Body validation failed', {
+      activeLogger.warn?.('Body validation failed', {
         errorCount: result.errors.length,
         fields: result.errors.map((e) => e.field),
+        correlationId,
       });
 
       if (options.stopOnError) {
@@ -67,14 +135,11 @@ export function validateBody(
               extensions: {
                 code: 'schemas/body_validation_failed',
                 errors: result.errors,
+                correlationId,
               },
             };
 
-        res.status(problemDetails.status ?? 400).json({
-          success: false,
-          message: problemDetails.title,
-          ...problemDetails,
-        });
+        sendProblem(res, problemDetails);
         return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
@@ -99,12 +164,16 @@ export function validateQuery(
   options: ValidationOptions = {}
 ): (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
   return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
+    const activeLogger = options.logger ?? logger;
+    const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
+    const correlationId = (req.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, req.query);
 
     if (!result.success && result.errors) {
-      logger.warn('Query validation failed', {
+      activeLogger.warn?.('Query validation failed', {
         errorCount: result.errors.length,
         fields: result.errors.map((e) => e.field),
+        correlationId,
       });
 
       if (options.stopOnError) {
@@ -118,14 +187,11 @@ export function validateQuery(
               extensions: {
                 code: 'schemas/query_validation_failed',
                 errors: result.errors,
+                correlationId,
               },
             };
 
-        res.status(problemDetails.status ?? 400).json({
-          success: false,
-          message: problemDetails.title,
-          ...problemDetails,
-        });
+        sendProblem(res, problemDetails);
         return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
@@ -150,12 +216,16 @@ export function validateParams(
   options: ValidationOptions = {}
 ): (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
   return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
+    const activeLogger = options.logger ?? logger;
+    const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
+    const correlationId = (req.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, req.params);
 
     if (!result.success && result.errors) {
-      logger.warn('Route parameters validation failed', {
+      activeLogger.warn?.('Route parameters validation failed', {
         errorCount: result.errors.length,
         fields: result.errors.map((e) => e.field),
+        correlationId,
       });
 
       if (options.stopOnError) {
@@ -169,14 +239,11 @@ export function validateParams(
               extensions: {
                 code: 'schemas/params_validation_failed',
                 errors: result.errors,
+                correlationId,
               },
             };
 
-        res.status(problemDetails.status ?? 400).json({
-          success: false,
-          message: problemDetails.title,
-          ...problemDetails,
-        });
+        sendProblem(res, problemDetails);
         return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
@@ -201,12 +268,16 @@ export function validateHeaders(
   options: ValidationOptions = {}
 ): (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
   return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
+    const activeLogger = options.logger ?? logger;
+    const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
+    const correlationId = (req.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, req.headers);
 
     if (!result.success && result.errors) {
-      logger.warn('Header validation failed', {
+      activeLogger.warn?.('Header validation failed', {
         errorCount: result.errors.length,
         fields: result.errors.map((e) => e.field),
+        correlationId,
       });
 
       if (options.stopOnError) {
@@ -220,14 +291,11 @@ export function validateHeaders(
               extensions: {
                 code: 'schemas/headers_validation_failed',
                 errors: result.errors,
+                correlationId,
               },
             };
 
-        res.status(problemDetails.status ?? 400).json({
-          success: false,
-          message: problemDetails.title,
-          ...problemDetails,
-        });
+        sendProblem(res, problemDetails);
         return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
@@ -252,9 +320,11 @@ export function validationErrorHandler(): (
 ) => void {
   return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     if (req.validationErrors && req.validationErrors.length > 0) {
-      logger.error('Request validation failed', {
+      const correlationId = (req.headers?.['x-request-id'] as string | undefined) ?? undefined;
+      logger.error?.('Request validation failed', {
         errorCount: req.validationErrors.length,
         errors: req.validationErrors,
+        correlationId,
       });
 
       const problemDetails: ProblemDetails = {
@@ -265,14 +335,11 @@ export function validationErrorHandler(): (
         extensions: {
           code: 'schemas/request_validation_failed',
           errors: req.validationErrors,
+          correlationId,
         },
       };
 
-      res.status(400).json({
-        success: false,
-        message: problemDetails.title,
-        ...problemDetails,
-      });
+      sendProblem(res, problemDetails);
       return;
     }
     next();

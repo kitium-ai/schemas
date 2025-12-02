@@ -6,6 +6,7 @@ export type UUID = string & { readonly __brand: 'UUID' };
 export type Email = string & { readonly __brand: 'Email' };
 export type URL = string & { readonly __brand: 'URL' };
 export type PhoneNumber = string & { readonly __brand: 'PhoneNumber' };
+export type Locale = string & { readonly __brand: 'Locale' };
 
 /**
  * Timestamp types for consistency
@@ -17,6 +18,18 @@ export interface Timestamps {
 
 export interface TimestampsWithDelete extends Timestamps {
   deletedAt: Date | null;
+}
+
+/**
+ * Audit and governance metadata
+ */
+export interface AuditStamp {
+  createdBy: UUID;
+  updatedBy?: UUID;
+  requestId?: string;
+  source?: string;
+  sourceRegion?: string;
+  tenantId?: UUID;
 }
 
 /**
@@ -62,6 +75,37 @@ export enum PaymentStatus {
   FAILED = 'failed',
   REFUNDED = 'refunded',
   CANCELLED = 'cancelled',
+}
+
+/**
+ * Compliance and data governance types
+ */
+export enum PIIClassification {
+  NONE = 'none',
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+}
+
+export interface DataResidency {
+  region: string;
+  dataCenter?: string;
+  restrictCrossRegion?: boolean;
+}
+
+export interface DataClassification {
+  pii: PIIClassification;
+  residency?: DataResidency;
+  redactionPaths?: string[];
+  allowedUses?: ('analytics' | 'operations' | 'support')[];
+}
+
+export interface SecretMetadata {
+  encrypted: boolean;
+  managedBy?: 'user' | 'system';
+  rotationIntervalDays?: number;
+  lastRotatedAt?: Date;
+  redactInLogs?: boolean;
 }
 
 /**

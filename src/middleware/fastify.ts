@@ -33,11 +33,30 @@ export interface FastifyInstance {
 export interface FastifyValidationOptions {
   stopOnError?: boolean;
   coerceTypes?: boolean;
+  logger?: FastifyLogger;
+  hardening?: {
+    maxBodyBytes?: number;
+    allowedContentTypes?: string[];
+    correlationIdHeader?: string;
+  };
 }
 
 export interface FastifyValidationError {
   errors: ValidationErrorDetail[];
   message: string;
+}
+
+type FastifyLogger = Partial<{
+  warn: (message: string, meta?: Record<string, unknown>) => void;
+  error: (message: string, meta?: Record<string, unknown>) => void;
+  info: (message: string, meta?: Record<string, unknown>) => void;
+  debug: (message: string, meta?: Record<string, unknown>) => void;
+}>;
+
+let logger: FastifyLogger = console;
+
+export function configureFastifyValidationLogger(custom: FastifyLogger): void {
+  logger = custom;
 }
 
 /**
@@ -51,6 +70,41 @@ export function createBodyValidationHook(
   options: FastifyValidationOptions = {}
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const activeLogger = options.logger ?? logger;
+    const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
+    const correlationId = (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
+
+    if (options.hardening?.maxBodyBytes) {
+      const contentLengthHeader = request.headers?.['content-length'];
+      const contentLength =
+        typeof contentLengthHeader === 'string' ? Number(contentLengthHeader) : Number.NaN;
+      if (!Number.isNaN(contentLength) && contentLength > options.hardening.maxBodyBytes) {
+        await reply.status(413).send({
+          success: false,
+          message: 'Payload too large',
+          code: 'schemas/body_size_exceeded',
+          correlationId,
+        });
+        return;
+      }
+    }
+
+    if (options.hardening?.allowedContentTypes?.length) {
+      const contentType = String(request.headers?.['content-type'] ?? '').toLowerCase();
+      const isAllowed = options.hardening.allowedContentTypes.some((allowed) =>
+        contentType.includes(allowed.toLowerCase())
+      );
+      if (!isAllowed) {
+        await reply.status(415).send({
+          success: false,
+          message: 'Unsupported content type',
+          allowedContentTypes: options.hardening.allowedContentTypes,
+          correlationId,
+        });
+        return;
+      }
+    }
+
     const result = validate(schema, request.body);
 
     if (!result.success && result.errors) {
@@ -59,9 +113,15 @@ export function createBodyValidationHook(
           success: false,
           message: 'Request body validation failed',
           errors: result.errors,
+          correlationId,
         });
         return;
       }
+      activeLogger.warn?.('Fastify body validation failed', {
+        errorCount: result.errors.length,
+        fields: result.errors.map((e) => e.field),
+        correlationId,
+      });
       request.validationErrors = (request.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       request.validated = request.validated || {};
@@ -82,6 +142,9 @@ export function createQueryValidationHook(
   options: FastifyValidationOptions = {}
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const activeLogger = options.logger ?? logger;
+    const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
+    const correlationId = (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, request.query);
 
     if (!result.success && result.errors) {
@@ -90,9 +153,15 @@ export function createQueryValidationHook(
           success: false,
           message: 'Query validation failed',
           errors: result.errors,
+          correlationId,
         });
         return;
       }
+      activeLogger.warn?.('Fastify query validation failed', {
+        errorCount: result.errors.length,
+        fields: result.errors.map((e) => e.field),
+        correlationId,
+      });
       request.validationErrors = (request.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       request.validated = request.validated || {};
@@ -113,6 +182,9 @@ export function createParamsValidationHook(
   options: FastifyValidationOptions = {}
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const activeLogger = options.logger ?? logger;
+    const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
+    const correlationId = (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, request.params);
 
     if (!result.success && result.errors) {
@@ -121,9 +193,15 @@ export function createParamsValidationHook(
           success: false,
           message: 'Route parameter validation failed',
           errors: result.errors,
+          correlationId,
         });
         return;
       }
+      activeLogger.warn?.('Fastify params validation failed', {
+        errorCount: result.errors.length,
+        fields: result.errors.map((e) => e.field),
+        correlationId,
+      });
       request.validationErrors = (request.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       request.validated = request.validated || {};
@@ -144,6 +222,9 @@ export function createHeadersValidationHook(
   options: FastifyValidationOptions = {}
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const activeLogger = options.logger ?? logger;
+    const correlationIdHeader = options.hardening?.correlationIdHeader ?? 'x-request-id';
+    const correlationId = (request.headers?.[correlationIdHeader] as string | undefined) ?? undefined;
     const result = validate(schema, request.headers);
 
     if (!result.success && result.errors) {
@@ -152,9 +233,15 @@ export function createHeadersValidationHook(
           success: false,
           message: 'Header validation failed',
           errors: result.errors,
+          correlationId,
         });
         return;
       }
+      activeLogger.warn?.('Fastify header validation failed', {
+        errorCount: result.errors.length,
+        fields: result.errors.map((e) => e.field),
+        correlationId,
+      });
       request.validationErrors = (request.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       request.validated = request.validated || {};
@@ -179,10 +266,12 @@ export function createValidationErrorHandler(): (
     reply: FastifyReply
   ): Promise<void> => {
     if (request.validationErrors && request.validationErrors.length > 0) {
+      const correlationId = (request.headers?.['x-request-id'] as string | undefined) ?? undefined;
       await reply.status(400).send({
         success: false,
         message: 'Request validation failed',
         errors: request.validationErrors,
+        correlationId,
       });
       return;
     }

@@ -1,15 +1,23 @@
 /**
  * Validation utilities for schema validation and error handling
  *
- * Provides comprehensive validation with integration to @kitiumai/error and @kitiumai/logger
- * for enterprise-grade error handling and observability.
+ * Provides comprehensive validation with lightweight, optional logging hooks for
+ * enterprise-grade error handling and observability.
  */
 
 import type { ZodSchema, ZodError } from 'zod';
-import { getLogger } from '@kitiumai/logger';
-import { ValidationError as KitiumValidationError, type ErrorContext } from '@kitiumai/error';
 
-const logger = getLogger();
+type ValidationLogger = Partial<{
+  debug: (message: string, meta?: Record<string, unknown>) => void;
+  warn: (message: string, meta?: Record<string, unknown>) => void;
+  error: (message: string, meta?: Record<string, unknown>) => void;
+}>;
+
+let logger: ValidationLogger = console;
+
+export function configureValidationLogger(custom: ValidationLogger): void {
+  logger = custom;
+}
 
 /**
  * Validation result types
@@ -22,6 +30,11 @@ export interface ValidationErrorDetail {
   field: string;
   message: string;
   code: string;
+}
+
+export interface ValidationErrorContext {
+  validationErrors: ValidationErrorDetail[];
+  fieldCount: number;
 }
 
 /**
@@ -46,7 +59,7 @@ export function validate<T>(schema: ZodSchema, data: unknown): ValidationResult<
         code: String(err.code),
       }));
 
-      logger.debug('Schema validation failed', {
+      logger.debug?.('Schema validation failed', {
         errorCount: errors.length,
         fields: errors.map((e) => e.field),
       });
@@ -56,7 +69,7 @@ export function validate<T>(schema: ZodSchema, data: unknown): ValidationResult<
         errors,
       };
     }
-    logger.error('Unknown validation error occurred', { error });
+    logger.error?.('Unknown validation error occurred', { error });
     return {
       success: false,
       errors: [
@@ -88,23 +101,15 @@ export function validateOrThrow<T>(schema: ZodSchema, data: unknown): T {
       code: String(err.code),
     })) ?? [{ field: 'unknown', message: String(error), code: 'UNKNOWN_ERROR' }];
 
-    const context: ErrorContext = {
+    const context: ValidationErrorContext = {
       validationErrors: errors,
       fieldCount: errors.length,
     };
 
-    const kitiumError = new KitiumValidationError({
-      code: 'schemas/validation_failed',
-      message: 'Schema validation failed',
-      statusCode: 400,
-      severity: 'warning',
-      retryable: false,
-      context,
-      help: `Validation errors: ${errors.map((e) => `${e.field}: ${e.message}`).join('; ')}`,
-    });
-
-    logger.warn('Validation error thrown', { errors, context });
-    throw kitiumError;
+    logger.warn?.('Validation error thrown', { errors, context });
+    const validationError = new ValidationError(errors, 'Schema validation failed');
+    validationError.context = context;
+    throw validationError;
   }
 }
 
@@ -133,7 +138,7 @@ export async function validateAsync<T>(
         code: String(err.code),
       }));
 
-      logger.debug('Async schema validation failed', {
+      logger.debug?.('Async schema validation failed', {
         errorCount: errors.length,
         fields: errors.map((e) => e.field),
       });
@@ -143,7 +148,7 @@ export async function validateAsync<T>(
         errors,
       };
     }
-    logger.error('Unknown async validation error occurred', { error });
+    logger.error?.('Unknown async validation error occurred', { error });
     return {
       success: false,
       errors: [
@@ -215,30 +220,24 @@ export function isValid<T>(schema: ZodSchema, data: unknown): data is T {
 }
 
 /**
- * Custom validation error that wraps @kitiumai/error ValidationError
- * Maintains backward compatibility while leveraging error infrastructure
+ * Custom validation error with structured context for downstream logging
  */
-export class ValidationError extends KitiumValidationError {
-  constructor(
-    public errors: ValidationErrorDetail[],
-    message?: string
-  ) {
-    const context: ErrorContext = {
+export class ValidationError extends Error {
+  public context?: ValidationErrorContext;
+  public errors: ValidationErrorDetail[];
+  public statusCode = 400;
+  public retryable = false;
+  public severity: 'warning' | 'error' = 'warning';
+  public code = 'schemas/validation_error';
+
+  constructor(errors: ValidationErrorDetail[], message?: string) {
+    super(message || formatValidationErrors(errors));
+    this.name = 'ValidationError';
+    this.errors = errors;
+    this.context = {
       validationErrors: errors,
       fieldCount: errors.length,
     };
-
-    super({
-      code: 'schemas/validation_error',
-      message: message || formatValidationErrors(errors),
-      statusCode: 400,
-      severity: 'warning',
-      retryable: false,
-      context,
-      help: formatValidationErrors(errors),
-    });
-
-    this.name = 'ValidationError';
   }
 }
 

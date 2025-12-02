@@ -3,7 +3,13 @@
  */
 
 import { z } from 'zod';
-import { UUID, Timestamps } from '../../types/common';
+import {
+  UUID,
+  Timestamps,
+  DataResidency,
+  SecretMetadata,
+  AuditStamp,
+} from '../../types/common';
 
 /**
  * Integration interface definitions
@@ -20,6 +26,8 @@ export interface Integration extends Timestamps {
   status: 'active' | 'inactive' | 'error' | 'pending';
   lastSyncAt?: Date;
   metadata?: Record<string, unknown>;
+  residency?: DataResidency;
+  audit?: AuditStamp;
 }
 
 export interface IntegrationCredential {
@@ -33,6 +41,7 @@ export interface IntegrationCredential {
   status: 'active' | 'expired' | 'revoked';
   createdAt: Date;
   updatedAt: Date;
+  secretMetadata?: SecretMetadata;
 }
 
 export interface WebhookConfig {
@@ -66,8 +75,10 @@ export interface CreateIntegrationInput {
     type: 'api_key' | 'oauth_token' | 'webhook_secret' | 'custom';
     value: string;
     expiresAt?: Date;
+    secretMetadata?: SecretMetadata;
   }[];
   metadata?: Record<string, unknown>;
+  residency?: DataResidency;
 }
 
 export interface UpdateIntegrationInput {
@@ -77,6 +88,7 @@ export interface UpdateIntegrationInput {
   config?: Record<string, unknown>;
   status?: 'active' | 'inactive' | 'error' | 'pending';
   metadata?: Record<string, unknown>;
+  residency?: DataResidency;
 }
 
 export interface TestIntegrationInput {
@@ -102,6 +114,23 @@ export const IntegrationSchema = z.object({
   status: z.enum(['active', 'inactive', 'error', 'pending']),
   lastSyncAt: z.date().optional(),
   metadata: z.record(z.unknown()).optional(),
+  residency: z
+    .object({
+      region: z.string(),
+      dataCenter: z.string().optional(),
+      restrictCrossRegion: z.boolean().optional(),
+    })
+    .optional(),
+  audit: z
+    .object({
+      createdBy: z.string().uuid(),
+      updatedBy: z.string().uuid().optional(),
+      requestId: z.string().optional(),
+      source: z.string().optional(),
+      sourceRegion: z.string().optional(),
+      tenantId: z.string().uuid().optional(),
+    })
+    .optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -121,10 +150,26 @@ export const CreateIntegrationSchema = z.object({
         type: z.enum(['api_key', 'oauth_token', 'webhook_secret', 'custom']),
         value: z.string().min(1),
         expiresAt: z.date().optional(),
+        secretMetadata: z
+          .object({
+            encrypted: z.boolean(),
+            managedBy: z.enum(['user', 'system']).optional(),
+            rotationIntervalDays: z.number().min(1).optional(),
+            lastRotatedAt: z.date().optional(),
+            redactInLogs: z.boolean().optional(),
+          })
+          .optional(),
       })
     )
     .optional(),
   metadata: z.record(z.unknown()).optional(),
+  residency: z
+    .object({
+      region: z.string(),
+      dataCenter: z.string().optional(),
+      restrictCrossRegion: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const UpdateIntegrationSchema = z.object({
@@ -134,6 +179,13 @@ export const UpdateIntegrationSchema = z.object({
   config: z.record(z.unknown()).optional(),
   status: z.enum(['active', 'inactive', 'error', 'pending']).optional(),
   metadata: z.record(z.unknown()).optional(),
+  residency: z
+    .object({
+      region: z.string(),
+      dataCenter: z.string().optional(),
+      restrictCrossRegion: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const TestIntegrationSchema = z.object({
@@ -155,6 +207,15 @@ export const IntegrationCredentialSchema = z.object({
   status: z.enum(['active', 'expired', 'revoked']),
   createdAt: z.date(),
   updatedAt: z.date(),
+  secretMetadata: z
+    .object({
+      encrypted: z.boolean(),
+      managedBy: z.enum(['user', 'system']).optional(),
+      rotationIntervalDays: z.number().min(1).optional(),
+      lastRotatedAt: z.date().optional(),
+      redactInLogs: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export type ValidatedIntegration = z.infer<typeof IntegrationSchema>;
