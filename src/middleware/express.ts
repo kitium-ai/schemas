@@ -1,9 +1,16 @@
 /**
  * Express.js middleware for request validation
+ *
+ * Integrates with @kitiumai/error and @kitiumai/logger for comprehensive
+ * request validation with structured error handling and observability.
  */
 
-import { ZodSchema } from 'zod';
-import { validate, ValidationErrorDetail } from '../validators/index.js';
+import type { ZodSchema } from 'zod';
+import { getLogger } from '@kitiumai/logger';
+import { type ProblemDetails } from '@kitiumai/error';
+import { validate, type ValidationErrorDetail } from '../validators/index.js';
+
+const logger = getLogger();
 
 export type ExpressRequest = {
   body: unknown;
@@ -22,6 +29,7 @@ export type ExpressNextFunction = (error?: Error | unknown) => void;
 export interface ValidationOptions {
   stopOnError?: boolean;
   coerceTypes?: boolean;
+  errorHandler?: (errors: ValidationErrorDetail[]) => ProblemDetails;
 }
 
 export interface ValidatedRequest extends ExpressRequest {
@@ -43,19 +51,37 @@ export function validateBody(
     const result = validate(schema, req.body);
 
     if (!result.success && result.errors) {
+      logger.warn('Body validation failed', {
+        errorCount: result.errors.length,
+        fields: result.errors.map((e) => e.field),
+      });
+
       if (options.stopOnError) {
-        res.status(400).json({
+        const problemDetails: ProblemDetails = options.errorHandler
+          ? options.errorHandler(result.errors)
+          : {
+              type: 'https://docs.kitium.ai/errors/validation_failed',
+              title: 'Request validation failed',
+              status: 400,
+              detail: 'The request body failed validation',
+              extensions: {
+                code: 'schemas/body_validation_failed',
+                errors: result.errors,
+              },
+            };
+
+        res.status(problemDetails.status ?? 400).json({
           success: false,
-          message: 'Request validation failed',
-          errors: result.errors,
+          message: problemDetails.title,
+          ...problemDetails,
         });
         return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       req.validated = req.validated || {};
-      req.validated.body = result.data;
-      req.body = result.data as Record<string, unknown>;
+      req.validated['body'] = result.data;
+      (req as unknown as Record<string, unknown>)['body'] = result.data;
     }
 
     next();
@@ -76,19 +102,37 @@ export function validateQuery(
     const result = validate(schema, req.query);
 
     if (!result.success && result.errors) {
+      logger.warn('Query validation failed', {
+        errorCount: result.errors.length,
+        fields: result.errors.map((e) => e.field),
+      });
+
       if (options.stopOnError) {
-        res.status(400).json({
+        const problemDetails: ProblemDetails = options.errorHandler
+          ? options.errorHandler(result.errors)
+          : {
+              type: 'https://docs.kitium.ai/errors/validation_failed',
+              title: 'Query validation failed',
+              status: 400,
+              detail: 'The query parameters failed validation',
+              extensions: {
+                code: 'schemas/query_validation_failed',
+                errors: result.errors,
+              },
+            };
+
+        res.status(problemDetails.status ?? 400).json({
           success: false,
-          message: 'Query validation failed',
-          errors: result.errors,
+          message: problemDetails.title,
+          ...problemDetails,
         });
         return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       req.validated = req.validated || {};
-      req.validated.query = result.data;
-      req.query = result.data as Record<string, unknown>;
+      req.validated['query'] = result.data;
+      (req as unknown as Record<string, unknown>)['query'] = result.data;
     }
 
     next();
@@ -109,19 +153,37 @@ export function validateParams(
     const result = validate(schema, req.params);
 
     if (!result.success && result.errors) {
+      logger.warn('Route parameters validation failed', {
+        errorCount: result.errors.length,
+        fields: result.errors.map((e) => e.field),
+      });
+
       if (options.stopOnError) {
-        res.status(400).json({
+        const problemDetails: ProblemDetails = options.errorHandler
+          ? options.errorHandler(result.errors)
+          : {
+              type: 'https://docs.kitium.ai/errors/validation_failed',
+              title: 'Route parameter validation failed',
+              status: 400,
+              detail: 'The route parameters failed validation',
+              extensions: {
+                code: 'schemas/params_validation_failed',
+                errors: result.errors,
+              },
+            };
+
+        res.status(problemDetails.status ?? 400).json({
           success: false,
-          message: 'Route parameter validation failed',
-          errors: result.errors,
+          message: problemDetails.title,
+          ...problemDetails,
         });
         return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       req.validated = req.validated || {};
-      req.validated.params = result.data;
-      req.params = result.data as Record<string, unknown>;
+      req.validated['params'] = result.data;
+      (req as unknown as Record<string, unknown>)['params'] = result.data;
     }
 
     next();
@@ -142,18 +204,36 @@ export function validateHeaders(
     const result = validate(schema, req.headers);
 
     if (!result.success && result.errors) {
+      logger.warn('Header validation failed', {
+        errorCount: result.errors.length,
+        fields: result.errors.map((e) => e.field),
+      });
+
       if (options.stopOnError) {
-        res.status(400).json({
+        const problemDetails: ProblemDetails = options.errorHandler
+          ? options.errorHandler(result.errors)
+          : {
+              type: 'https://docs.kitium.ai/errors/validation_failed',
+              title: 'Header validation failed',
+              status: 400,
+              detail: 'The request headers failed validation',
+              extensions: {
+                code: 'schemas/headers_validation_failed',
+                errors: result.errors,
+              },
+            };
+
+        res.status(problemDetails.status ?? 400).json({
           success: false,
-          message: 'Header validation failed',
-          errors: result.errors,
+          message: problemDetails.title,
+          ...problemDetails,
         });
         return;
       }
       req.validationErrors = (req.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       req.validated = req.validated || {};
-      req.validated.headers = result.data;
+      req.validated['headers'] = result.data;
     }
 
     next();
@@ -172,10 +252,26 @@ export function validationErrorHandler(): (
 ) => void {
   return (req: ValidatedRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     if (req.validationErrors && req.validationErrors.length > 0) {
+      logger.error('Request validation failed', {
+        errorCount: req.validationErrors.length,
+        errors: req.validationErrors,
+      });
+
+      const problemDetails: ProblemDetails = {
+        type: 'https://docs.kitium.ai/errors/request_validation_failed',
+        title: 'Request validation failed',
+        status: 400,
+        detail: 'One or more request fields failed validation',
+        extensions: {
+          code: 'schemas/request_validation_failed',
+          errors: req.validationErrors,
+        },
+      };
+
       res.status(400).json({
         success: false,
-        message: 'Request validation failed',
-        errors: req.validationErrors,
+        message: problemDetails.title,
+        ...problemDetails,
       });
       return;
     }

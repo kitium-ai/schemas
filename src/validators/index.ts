@@ -1,17 +1,22 @@
 /**
  * Validation utilities for schema validation and error handling
+ *
+ * Provides comprehensive validation with integration to @kitiumai/error and @kitiumai/logger
+ * for enterprise-grade error handling and observability.
  */
 
-import { ZodSchema, ZodError } from 'zod';
+import type { ZodSchema, ZodError } from 'zod';
+import { getLogger } from '@kitiumai/logger';
+import { ValidationError as KitiumValidationError, type ErrorContext } from '@kitiumai/error';
+
+const logger = getLogger();
 
 /**
  * Validation result types
  */
-export interface ValidationResult<T> {
-  success: boolean;
-  data?: T;
-  errors?: ValidationErrorDetail[];
-}
+export type ValidationResult<T> =
+  | { success: true; data: T; errors?: undefined }
+  | { success: false; data?: undefined; errors: ValidationErrorDetail[] };
 
 export interface ValidationErrorDetail {
   field: string;
@@ -33,16 +38,25 @@ export function validate<T>(schema: ZodSchema, data: unknown): ValidationResult<
       data: validated as T,
     };
   } catch (error) {
-    if (error instanceof ZodError) {
+    const zodError = error as ZodError;
+    if (zodError?.errors) {
+      const errors: ValidationErrorDetail[] = zodError.errors.map((err) => ({
+        field: err.path.join('.'),
+        message: err.message,
+        code: String(err.code),
+      }));
+
+      logger.debug('Schema validation failed', {
+        errorCount: errors.length,
+        fields: errors.map((e) => e.field),
+      });
+
       return {
         success: false,
-        errors: error.errors.map((err) => ({
-          field: err.path.join('.'),
-          message: err.message,
-          code: err.code,
-        })),
+        errors,
       };
     }
+    logger.error('Unknown validation error occurred', { error });
     return {
       success: false,
       errors: [
@@ -64,7 +78,34 @@ export function validate<T>(schema: ZodSchema, data: unknown): ValidationResult<
  * @throws ValidationError if validation fails
  */
 export function validateOrThrow<T>(schema: ZodSchema, data: unknown): T {
-  return schema.parse(data) as T;
+  try {
+    return schema.parse(data) as T;
+  } catch (error) {
+    const zodError = error as ZodError;
+    const errors: ValidationErrorDetail[] = zodError?.errors?.map((err) => ({
+      field: err.path.join('.'),
+      message: err.message,
+      code: String(err.code),
+    })) ?? [{ field: 'unknown', message: String(error), code: 'UNKNOWN_ERROR' }];
+
+    const context: ErrorContext = {
+      validationErrors: errors,
+      fieldCount: errors.length,
+    };
+
+    const kitiumError = new KitiumValidationError({
+      code: 'schemas/validation_failed',
+      message: 'Schema validation failed',
+      statusCode: 400,
+      severity: 'warning',
+      retryable: false,
+      context,
+      help: `Validation errors: ${errors.map((e) => `${e.field}: ${e.message}`).join('; ')}`,
+    });
+
+    logger.warn('Validation error thrown', { errors, context });
+    throw kitiumError;
+  }
 }
 
 /**
@@ -84,16 +125,25 @@ export async function validateAsync<T>(
       data: validated as T,
     };
   } catch (error) {
-    if (error instanceof ZodError) {
+    const zodError = error as ZodError;
+    if (zodError?.errors) {
+      const errors: ValidationErrorDetail[] = zodError.errors.map((err) => ({
+        field: err.path.join('.'),
+        message: err.message,
+        code: String(err.code),
+      }));
+
+      logger.debug('Async schema validation failed', {
+        errorCount: errors.length,
+        fields: errors.map((e) => e.field),
+      });
+
       return {
         success: false,
-        errors: error.errors.map((err) => ({
-          field: err.path.join('.'),
-          message: err.message,
-          code: err.code,
-        })),
+        errors,
       };
     }
+    logger.error('Unknown async validation error occurred', { error });
     return {
       success: false,
       errors: [
@@ -164,12 +214,30 @@ export function isValid<T>(schema: ZodSchema, data: unknown): data is T {
   }
 }
 
-export class ValidationError extends Error {
+/**
+ * Custom validation error that wraps @kitiumai/error ValidationError
+ * Maintains backward compatibility while leveraging error infrastructure
+ */
+export class ValidationError extends KitiumValidationError {
   constructor(
     public errors: ValidationErrorDetail[],
     message?: string
   ) {
-    super(message || formatValidationErrors(errors));
+    const context: ErrorContext = {
+      validationErrors: errors,
+      fieldCount: errors.length,
+    };
+
+    super({
+      code: 'schemas/validation_error',
+      message: message || formatValidationErrors(errors),
+      statusCode: 400,
+      severity: 'warning',
+      retryable: false,
+      context,
+      help: formatValidationErrors(errors),
+    });
+
     this.name = 'ValidationError';
   }
 }
@@ -201,19 +269,29 @@ export function validateMultiple<T extends Record<string, unknown>>(
     }
   }
 
+  if (errors.length === 0) {
+    return {
+      success: true,
+      data: validated as Partial<T>,
+    };
+  }
   return {
-    success: errors.length === 0,
-    data: errors.length === 0 ? (validated as Partial<T>) : undefined,
-    errors: errors.length > 0 ? errors : undefined,
+    success: false,
+    errors,
   };
 }
 
 /**
- * Cross-field validation result
+ * Cross-field validation result with field dependency tracking
  */
-export interface CrossFieldValidationResult<T> extends ValidationResult<T> {
-  fieldDependencies?: Record<string, string[]>;
-}
+export type CrossFieldValidationResult<T> =
+  | { success: true; data: T; errors?: undefined; fieldDependencies?: Record<string, string[]> }
+  | {
+      success: false;
+      data?: undefined;
+      errors: ValidationErrorDetail[];
+      fieldDependencies?: Record<string, string[]>;
+    };
 
 /**
  * Validates cross-field dependencies and relationships
@@ -233,6 +311,7 @@ export function validateWithCrossFields<T>(
 ): CrossFieldValidationResult<T> {
   const baseResult = validate<T>(schema, data);
   const crossFieldErrors: ValidationErrorDetail[] = [];
+  const allErrors: ValidationErrorDetail[] = [];
 
   if (baseResult.success && data) {
     for (const rule of rules) {
@@ -246,19 +325,33 @@ export function validateWithCrossFields<T>(
         }
       }
     }
+  } else if (!baseResult.success && baseResult.errors) {
+    allErrors.push(...baseResult.errors);
   }
 
+  allErrors.push(...crossFieldErrors);
+
+  const fieldDependencies = rules.reduce(
+    (acc, rule, idx) => {
+      acc[`rule_${idx}`] = rule.fields;
+      return acc;
+    },
+    {} as Record<string, string[]>
+  );
+
+  if (baseResult.success && crossFieldErrors.length === 0) {
+    const hasDependencies = Object.keys(fieldDependencies).length > 0;
+    return {
+      success: true,
+      data: baseResult.data,
+      ...(hasDependencies ? { fieldDependencies } : {}),
+    };
+  }
+  const hasDependencies = Object.keys(fieldDependencies).length > 0;
   return {
-    success: baseResult.success && crossFieldErrors.length === 0,
-    data: baseResult.success && crossFieldErrors.length === 0 ? baseResult.data : undefined,
-    errors: [...(baseResult.errors || []), ...crossFieldErrors],
-    fieldDependencies: rules.reduce(
-      (acc, rule, idx) => {
-        acc[`rule_${idx}`] = rule.fields;
-        return acc;
-      },
-      {} as Record<string, string[]>
-    ),
+    success: false,
+    errors: allErrors,
+    ...(hasDependencies ? { fieldDependencies } : {}),
   };
 }
 

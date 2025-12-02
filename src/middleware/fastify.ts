@@ -65,8 +65,8 @@ export function createBodyValidationHook(
       request.validationErrors = (request.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       request.validated = request.validated || {};
-      request.validated.body = result.data;
-      request.body = result.data;
+      request.validated['body'] = result.data;
+      (request as unknown as Record<string, unknown>)['body'] = result.data;
     }
   };
 }
@@ -96,8 +96,8 @@ export function createQueryValidationHook(
       request.validationErrors = (request.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       request.validated = request.validated || {};
-      request.validated.query = result.data;
-      request.query = result.data as Record<string, unknown>;
+      request.validated['query'] = result.data;
+      (request as unknown as Record<string, unknown>)['query'] = result.data;
     }
   };
 }
@@ -127,8 +127,8 @@ export function createParamsValidationHook(
       request.validationErrors = (request.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       request.validated = request.validated || {};
-      request.validated.params = result.data;
-      request.params = result.data as Record<string, unknown>;
+      request.validated['params'] = result.data;
+      (request as unknown as Record<string, unknown>)['params'] = result.data;
     }
   };
 }
@@ -158,7 +158,7 @@ export function createHeadersValidationHook(
       request.validationErrors = (request.validationErrors || []).concat(result.errors);
     } else if (result.data) {
       request.validated = request.validated || {};
-      request.validated.headers = result.data;
+      request.validated['headers'] = result.data;
     }
   };
 }
