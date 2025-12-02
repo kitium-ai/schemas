@@ -56,3 +56,6 @@ export * from './middleware/fastify';
 
 // Middleware utilities and helpers
 export * from './middleware/utils';
+
+// Framework adapters and OpenAPI/JSON Schema helpers
+export * from './integrations';

@@ -65,6 +65,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `src/middleware/utils.ts` - Utility functions for validation
   - `src/middleware/index.ts` - Module exports
 
+#### Compliance & Governance
+
+- Added audit stamps, tenant ownership, residency metadata, and PII classification to core user, organization, billing, and integration schemas
+- Added secret metadata and rotation flags to integration credentials for safer handling of sensitive values
+
+#### Framework Integrations & Exports
+
+- Next.js App Router wrapper (`withNextValidation`) for typed route handlers
+- NestJS pipe factory (`createNestValidationPipe`) and tRPC input validator helper
+- Lightweight JSON Schema/OpenAPI exports via `exportJsonSchema` and `toOpenAPIParameter`
+
+#### Middleware Hardening
+
+- Optional `hardening` options for Express/Fastify middleware to enforce payload size, allowed content types, and correlation ID headers
+- Logger injection hooks for middleware and validators with console-based defaults to keep runtime dependencies minimal
+
 #### Updated Exports
 
 - Updated `src/index.ts` to export all middleware and utilities
@@ -92,6 +108,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Conditional validation examples
   - Custom error message mapping examples
   - Middleware utilities examples
+
+- **Governance & Operations:**
+  - Added versioning, deprecation, and LTS support policy
+  - Documented security/compliance defaults (audit stamps, residency, PII classification, secret metadata)
+  - Added extensibility playbook, tree-shaking guidance, and compatibility expectations
+  - New adapter examples for Next.js, NestJS, and OpenAPI/JSON Schema export
 
 - **Integration Examples:**
   - Express.js with automatic middleware validation

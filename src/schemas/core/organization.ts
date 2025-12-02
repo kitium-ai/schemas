@@ -3,7 +3,15 @@
  */
 
 import { z } from 'zod';
-import { UUID, Timestamps, Address } from '../../types/common';
+import {
+  UUID,
+  Timestamps,
+  Address,
+  DataResidency,
+  AuditStamp,
+  DataClassification,
+  PIIClassification,
+} from '../../types/common';
 
 /**
  * Organization interface definition
@@ -22,6 +30,10 @@ export interface Organization extends Timestamps {
   settings?: OrganizationSettings;
   metadata?: Record<string, unknown>;
   ownerId: UUID;
+  tenantId?: UUID;
+  residency?: DataResidency;
+  dataClassification?: DataClassification;
+  audit?: AuditStamp;
 }
 
 export interface OrganizationSettings {
@@ -44,6 +56,8 @@ export interface Team extends Timestamps {
   status: 'active' | 'inactive';
   memberCount: number;
   metadata?: Record<string, unknown>;
+  tenantId?: UUID;
+  audit?: AuditStamp;
 }
 
 export interface CreateOrganizationInput {
@@ -56,6 +70,7 @@ export interface CreateOrganizationInput {
   address?: Address;
   settings?: OrganizationSettings;
   metadata?: Record<string, unknown>;
+  tenantId?: UUID;
 }
 
 export interface UpdateOrganizationInput {
@@ -69,6 +84,9 @@ export interface UpdateOrganizationInput {
   address?: Address;
   settings?: OrganizationSettings;
   metadata?: Record<string, unknown>;
+  residency?: DataResidency;
+  dataClassification?: DataClassification;
+  tenantId?: UUID;
 }
 
 /**
@@ -80,6 +98,30 @@ const AddressSchema = z.object({
   state: z.string(),
   postalCode: z.string(),
   country: z.string(),
+});
+
+const DataResidencySchema = z.object({
+  region: z.string(),
+  dataCenter: z.string().optional(),
+  restrictCrossRegion: z.boolean().optional(),
+});
+
+const AuditStampSchema = z.object({
+  createdBy: z.string().uuid(),
+  updatedBy: z.string().uuid().optional(),
+  requestId: z.string().optional(),
+  source: z.string().optional(),
+  sourceRegion: z.string().optional(),
+  tenantId: z.string().uuid().optional(),
+});
+
+const DataClassificationSchema = z.object({
+  pii: z.nativeEnum(PIIClassification),
+  residency: DataResidencySchema.optional(),
+  redactionPaths: z.array(z.string()).optional(),
+  allowedUses: z
+    .array(z.enum(['analytics', 'operations', 'support']))
+    .optional(),
 });
 
 const OrganizationSettingsSchema = z.object({
@@ -116,6 +158,10 @@ export const OrganizationSchema = z.object({
   settings: OrganizationSettingsSchema.optional(),
   metadata: z.record(z.unknown()).optional(),
   ownerId: z.string().uuid(),
+  tenantId: z.string().uuid().optional(),
+  residency: DataResidencySchema.optional(),
+  dataClassification: DataClassificationSchema.optional(),
+  audit: AuditStampSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -133,6 +179,7 @@ export const CreateOrganizationSchema = z.object({
   address: AddressSchema.optional(),
   settings: OrganizationSettingsSchema.optional(),
   metadata: z.record(z.unknown()).optional(),
+  tenantId: z.string().uuid().optional(),
 });
 
 export const UpdateOrganizationSchema = z.object({
@@ -149,6 +196,9 @@ export const UpdateOrganizationSchema = z.object({
   address: AddressSchema.optional(),
   settings: OrganizationSettingsSchema.optional(),
   metadata: z.record(z.unknown()).optional(),
+  residency: DataResidencySchema.optional(),
+  dataClassification: DataClassificationSchema.optional(),
+  tenantId: z.string().uuid().optional(),
 });
 
 export const TeamSchema = z.object({
@@ -159,6 +209,8 @@ export const TeamSchema = z.object({
   status: z.enum(['active', 'inactive']),
   memberCount: z.number().min(0),
   metadata: z.record(z.unknown()).optional(),
+  tenantId: z.string().uuid().optional(),
+  audit: AuditStampSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

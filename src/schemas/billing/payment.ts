@@ -3,7 +3,16 @@
  */
 
 import { z } from 'zod';
-import { UUID, Timestamps, PaymentStatus, Address } from '../../types/common';
+import {
+  UUID,
+  Timestamps,
+  PaymentStatus,
+  Address,
+  AuditStamp,
+  DataResidency,
+  DataClassification,
+  PIIClassification,
+} from '../../types/common';
 
 /**
  * Payment interface definitions
@@ -27,6 +36,8 @@ export interface PaymentMethod extends Timestamps {
     routingNumber: string;
   };
   metadata?: Record<string, unknown>;
+  residency?: DataResidency;
+  audit?: AuditStamp;
 }
 
 export interface Invoice extends Timestamps {
@@ -48,6 +59,8 @@ export interface Invoice extends Timestamps {
   notes?: string;
   pdf_url?: string;
   metadata?: Record<string, unknown>;
+  dataClassification?: DataClassification;
+  audit?: AuditStamp;
 }
 
 export interface InvoiceItem {
@@ -75,6 +88,7 @@ export interface Payment extends Timestamps {
   refundedAmount?: number;
   receipt_url?: string;
   metadata?: Record<string, unknown>;
+  audit?: AuditStamp;
 }
 
 export interface Refund extends Timestamps {
@@ -87,6 +101,7 @@ export interface Refund extends Timestamps {
   processedAt?: Date;
   externalRefundId?: string;
   metadata?: Record<string, unknown>;
+  audit?: AuditStamp;
 }
 
 export interface BillingInfo extends Timestamps {
@@ -97,6 +112,8 @@ export interface BillingInfo extends Timestamps {
   taxId?: string;
   billingEmail: string;
   billingName: string;
+  residency?: DataResidency;
+  audit?: AuditStamp;
 }
 
 export interface CreatePaymentInput {
@@ -165,6 +182,30 @@ const InvoiceItemSchema = z.object({
   taxRate: z.number().min(0).max(100).optional(),
 });
 
+const DataResidencySchema = z.object({
+  region: z.string(),
+  dataCenter: z.string().optional(),
+  restrictCrossRegion: z.boolean().optional(),
+});
+
+const AuditStampSchema = z.object({
+  createdBy: z.string().uuid(),
+  updatedBy: z.string().uuid().optional(),
+  requestId: z.string().optional(),
+  source: z.string().optional(),
+  sourceRegion: z.string().optional(),
+  tenantId: z.string().uuid().optional(),
+});
+
+const DataClassificationSchema = z.object({
+  pii: z.nativeEnum(PIIClassification),
+  residency: DataResidencySchema.optional(),
+  redactionPaths: z.array(z.string()).optional(),
+  allowedUses: z
+    .array(z.enum(['analytics', 'operations', 'support']))
+    .optional(),
+});
+
 export const PaymentMethodSchema = z.object({
   id: z.string().uuid(),
   organizationId: z.string().uuid(),
@@ -188,6 +229,8 @@ export const PaymentMethodSchema = z.object({
     })
     .optional(),
   metadata: z.record(z.unknown()).optional(),
+  residency: DataResidencySchema.optional(),
+  audit: AuditStampSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -211,6 +254,8 @@ export const InvoiceSchema = z.object({
   notes: z.string().optional(),
   pdf_url: z.string().url().optional(),
   metadata: z.record(z.unknown()).optional(),
+  dataClassification: DataClassificationSchema.optional(),
+  audit: AuditStampSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -248,6 +293,7 @@ export const PaymentSchema = z.object({
   refundedAmount: z.number().optional(),
   receipt_url: z.string().url().optional(),
   metadata: z.record(z.unknown()).optional(),
+  audit: AuditStampSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -269,6 +315,7 @@ export const RefundSchema = z.object({
   processedAt: z.date().optional(),
   externalRefundId: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
+  audit: AuditStampSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -287,6 +334,8 @@ export const BillingInfoSchema = z.object({
   taxId: z.string().optional(),
   billingEmail: z.string().email(),
   billingName: z.string(),
+  residency: DataResidencySchema.optional(),
+  audit: AuditStampSchema.optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
